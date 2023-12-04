@@ -1,9 +1,3 @@
-# load model
-# load datasets
-# run evaluation
-# calculate values
-# print results
-
 import torch
 import tqdm
 import argparse
@@ -28,17 +22,19 @@ elif model == 'sd1.4':
 
 device = torch.device(device)
 
-for (source_images, target_images, source_points, target_points) in tqdm.tqdm(dataloader):
-    source_images, target_images = source_images.to(device), target_images.to(device)
-    source_points, target_points = source_points.to(device), target_points.to(device)
-    
-    # points must be to be [x, y] tensors
-    source_size = source_images.shape
-    target_size = target_images.shape
+def evaluate(dataloader):
+    for (source_images, target_images, source_points, target_points) in tqdm.tqdm(dataloader):
+        # load data on device
+        source_images, target_images = source_images.to(device), target_images.to(device)
+        source_points, target_points = source_points.to(device), target_points.to(device)
+        
+        # points must be to be [x, y] tensors
+        source_size = source_images.shape
+        target_size = target_images.shape
 
-    # swap from (x, y) to (y, x)
-    source_points = torch.flip(source_points, 1)
-    target_points = torch.flip(target_points, 1)
+        # swap from (x, y) to (y, x)
+        source_points = torch.flip(source_points, 1)
+        target_points = torch.flip(target_points, 1)
 
-    # run through model
-    predicted_points = model(source_images)
+        # run through model
+        predicted_points = model(source_images)
