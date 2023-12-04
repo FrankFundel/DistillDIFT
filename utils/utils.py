@@ -37,7 +37,7 @@ def compute_pck(predicted_points, target_points, load_size, pck_threshold=0.1, t
     else:
         left, top, right, bottom = target_bounding_box
         pck = distances <= pck_threshold * max(right-left, bottom-top)
-    return pck.mean()
+    return pck, pck.sum() / len(pck)
 
 
 def get_correspondences(source_features, target_features, source_points, load_size):

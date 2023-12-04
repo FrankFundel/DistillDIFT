@@ -2,27 +2,22 @@ import torch
 import tqdm
 import argparse
 
+from utils.utils import compute_pck
 from models.luo import LuoModel
+from models.hedlin import HedlinModel
 
-parser = argparse.ArgumentParser()
-parser.add_argument('model', type=str, default='standard', choices=['luo'], help="The type of model.")
-parser.add_argument('device', type=str, default='cuda:0', help='The device to be used.')
+from datasets.spair import SPairDataset
+from dataset.pfwillow import PFWillowDataset
 
-# Parse arguments
-args = parser.parse_args()
-model = args.model
-device = args.device
+def evaluate(model, dataloader, load_size, pck_threshold):
+    model.eval()
 
-if model == 'luo':
-    model = LuoModel(device)
-elif model == 'hedlin':
-    pass
-elif model == 'sd1.4':
-    pass
+    pbar = tqdm.tqdm(total=len(dataloader))
 
-device = torch.device(device)
+    total_ck = 0
+    total_ck_img = 0
+    total_ck_bbox = 0
 
-def evaluate(dataloader):
     for (source_images, target_images, source_points, target_points) in tqdm.tqdm(dataloader):
         # load data on device
         source_images, target_images = source_images.to(device), target_images.to(device)
@@ -38,3 +33,67 @@ def evaluate(dataloader):
 
         # run through model
         predicted_points = model(source_images)
+
+        # calculate PCK values
+        target_bounding_box = None
+        ck_img, pck_img = compute_pck(predicted_points, target_points, load_size, pck_threshold)
+        ck_bbox, pck_bbox = compute_pck(predicted_points, target_points, load_size, pck_threshold, target_bounding_box)
+        total_ck += len(target_points)
+        total_ck_img += ck_img
+        total_ck_bbox += ck_bbox
+
+        # update progress bar
+        pbar.update(1)
+        pbar.set_description(f"pck_img: {pck_img}, pck_bbox: {pck_bbox}")
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model', type=str, default='standard', choices=['luo'])
+    parser.add_argument('device', type=str, default='cuda:0')
+    parser.add_argument('--pck_threshold', type=float, default=0.1)
+
+    # Parse arguments
+    args = parser.parse_args()
+    model = args.model
+    device = args.device
+    pck_threshold = args.pck_threshold
+
+    # Load model
+    if model == 'luo':
+        model = LuoModel(device)
+    elif model == 'hedlin':
+        model = HedlinModel()
+
+    device = torch.device(device)
+    model.to(device)
+
+    # Load datasets
+    datasets = []
+    datasets.append(SPairDataset("data/spair-71k"))
+    datasets.append(PFWillowDataset("data/pf-willow"))
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model', type=str, default='standard', choices=['luo'])
+    parser.add_argument('device', type=str, default='cuda:0')
+    parser.add_argument('--pck_threshold', type=float, default=0.1)
+
+    # Parse arguments
+    args = parser.parse_args()
+    model = args.model
+    device = args.device
+    pck_threshold = args.pck_threshold
+
+    # Load model
+    if model == 'luo':
+        model = LuoModel(device)
+    elif model == 'hedlin':
+        model = HedlinModel()
+
+    device = torch.device(device)
+    model.to(device)
+
+    # Load datasets
+    datasets = []
+    datasets.append(SPairDataset("data/spair-71k"))
+    datasets.append(PFWillowDataset("data/pf-willow"))
