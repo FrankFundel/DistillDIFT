@@ -1,6 +1,6 @@
 import torch
 
-from base import BaseModel
+from .base import BaseModel
 from utils.utils import get_correspondences
 
 class HedlinModel(BaseModel):

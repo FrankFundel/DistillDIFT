@@ -14,7 +14,7 @@ from transformers import (
     CLIPTextModel, 
     CLIPTokenizer
 )
-from archs.stable_diffusion.resnet import set_timestep, collect_feats
+from .resnet import set_timestep, collect_feats
 
 """
 Functions for running the generalized diffusion process 

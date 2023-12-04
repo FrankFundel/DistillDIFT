@@ -2,13 +2,13 @@ from PIL import Image
 import torch
 
 from diffusers import DDIMScheduler
-from archs.stable_diffusion.diffusion import (
+from .stable_diffusion.diffusion import (
     init_models, 
     get_tokens_embedding,
     generalized_steps,
     collect_and_resize_feats
 )
-from archs.stable_diffusion.resnet import init_resnet_func
+from .stable_diffusion.resnet import init_resnet_func
 
 class DiffusionExtractor:
     """

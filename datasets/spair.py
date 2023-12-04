@@ -1,2 +1,3 @@
-# SPair-75K
-# see hedlin/eval/spair
+class SPairDataset:
+    def __init__(self):
+        pass

@@ -1,4 +1,4 @@
-weights_path: "weights/aggregation_network.pt"
+weights_path: "replicate/luo/weights/aggregation_network.pt"
 diffusion_mode: "inversion"
 output_resolution: 64
 batch_size: 2

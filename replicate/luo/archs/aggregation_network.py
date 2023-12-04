@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch import nn
-from archs.detectron2.resnet import ResNet, BottleneckBlock
+from .detectron2.resnet import ResNet, BottleneckBlock
 
 class AggregationNetwork(nn.Module):
     """

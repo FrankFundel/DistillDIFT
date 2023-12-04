@@ -1,6 +1,6 @@
 import torch
 
-from base import BaseModel
+from .base import BaseModel
 from utils.utils import get_correspondences
 from replicate.luo.extract_hyperfeatures import load_models
 

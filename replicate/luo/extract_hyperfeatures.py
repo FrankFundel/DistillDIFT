@@ -8,10 +8,10 @@ import random
 import torch
 from tqdm import tqdm
 
-from archs.diffusion_extractor import DiffusionExtractor
-from archs.aggregation_network import AggregationNetwork
-from archs.stable_diffusion.resnet import collect_dims
-from archs.correspondence_utils import process_image
+from .archs.diffusion_extractor import DiffusionExtractor
+from .archs.aggregation_network import AggregationNetwork
+from .archs.stable_diffusion.resnet import collect_dims
+from .archs.correspondence_utils import process_image
 
 def load_models(config_path, device="cuda"):
     config = OmegaConf.load(config_path)
