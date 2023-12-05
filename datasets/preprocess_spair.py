@@ -2,6 +2,7 @@ import os
 import json
 import h5py
 import tqdm
+import numpy as np
 from PIL import Image
 import argparse
 
@@ -50,16 +51,16 @@ def preprocess(dataset_directory, hdf5_filename):
             target_image = Image.open(os.path.join(images_directory, category, target_image))
 
             # Create datasets for images
-            group.create_dataset('source_image', data=source_image)
-            group.create_dataset('target_image', data=target_image)
+            group.create_dataset('source_image', data=np.array(source_image))
+            group.create_dataset('target_image', data=np.array(target_image))
 
             # Create dataset for correspondence points
-            group.create_dataset('source_points', data=source_points)
-            group.create_dataset('target_points', data=target_points)
+            group.create_dataset('source_points', data=np.array(source_points))
+            group.create_dataset('target_points', data=np.array(target_points))
 
             # Create dataset for bounding boxes
-            group.create_dataset('source_bbox', data=source_bbox)
-            group.create_dataset('target_bbox', data=target_bbox)
+            group.create_dataset('source_bbox', data=np.array(source_bbox))
+            group.create_dataset('target_bbox', data=np.array(target_bbox))
 
 
 # Preprocess SPair-71k dataset

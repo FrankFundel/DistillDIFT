@@ -1,7 +1,7 @@
 import torch
 
 from .base import BaseModel
-from utils.utils import get_correspondences
+from utils.correspondence import get_correspondences
 
 class HedlinModel(BaseModel):
     def __init__(self):

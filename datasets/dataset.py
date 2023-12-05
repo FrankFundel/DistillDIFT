@@ -68,9 +68,10 @@ class PFWillowDataset(data.Dataset):
     Dataset class for the PF-Willow dataset.
     """
 
-    def __init__(self, dataset_directory, csv_file):
+    def __init__(self, dataset_directory, csv_file, transform=None):
         self.dataset_directory = dataset_directory
         self.csv_file = csv_file
+        self.transform = transform
         self.data = self.load_data()
 
     def load_data(self):
@@ -97,6 +98,10 @@ class PFWillowDataset(data.Dataset):
         source_image = Image.open(source_image_path)
         target_image = Image.open(target_image_path)
 
+        if self.transform:
+            source_image = self.transform(source_image)
+            target_image = self.transform(target_image)
+
         return {
             'source_image': source_image,
             'target_image': target_image,
@@ -117,34 +122,37 @@ class SPairDataset(data.Dataset):
 
         # Load annotation filenames
         self.annotations_files = [f for f in os.listdir(self.annotations_dir) if f.endswith('.json')]
+        self.data = self.load_data()
 
     def __len__(self):
         return len(self.annotations_files)
 
+    def load_data(self):
+        data = []
+        for annotation_file in self.annotations_files:
+            with open(os.path.join(self.annotations_dir, annotation_file), 'r') as file:
+                annotation = json.load(file)
+
+            category = annotation['category']
+            source_image_path = os.path.join(self.images_dir, category, annotation['src_imname'])
+            target_image_path = os.path.join(self.images_dir, category, annotation['trg_imname'])
+            source_points = np.array(annotation['src_kps']).astype(np.float32)
+            target_points = np.array(annotation['trg_kps']).astype(np.float32)
+            source_bbox = np.array(annotation['src_bndbox']).astype(np.float32)
+            target_bbox = np.array(annotation['trg_bndbox']).astype(np.float32)
+
+            data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
+        return data
+
     def __getitem__(self, idx):
-        annotation_file = self.annotations_files[idx]
-        with open(os.path.join(self.annotations_dir, annotation_file), 'r') as file:
-            annotation = json.load(file)
+        source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox = self.data[idx]
 
-        category = annotation['category']
-        source_image = annotation['src_imname']
-        target_image = annotation['trg_imname']
-        source_points = annotation['src_kps']
-        target_points = annotation['trg_kps']
-        source_bbox = annotation['src_bndbox']
-        target_bbox = annotation['trg_bndbox']
-
-        source_image = Image.open(os.path.join(self.images_dir, category, source_image))
-        target_image = Image.open(os.path.join(self.images_dir, category, target_image))
+        source_image = Image.open(source_image_path)
+        target_image = Image.open(target_image_path)
 
         if self.transform:
             source_image = self.transform(source_image)
             target_image = self.transform(target_image)
-
-        source_points = torch.from_numpy(np.array(source_points))
-        target_points = torch.from_numpy(np.array(target_points))
-        source_bbox = torch.from_numpy(np.array(source_bbox))
-        target_bbox = torch.from_numpy(np.array(target_bbox))
 
         return {
             'source_image': source_image,

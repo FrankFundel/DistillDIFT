@@ -1,7 +1,7 @@
 [
     {
         "name": "PF-WILLOW",
-        "path": "../data/PF-WILLOW",
+        "path": ["data/PF-WILLOW", "data/PF-WILLOW/test_pairs_pf.csv"],
         "load_size": [300, 200]
     },
     {
