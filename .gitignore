@@ -1,6 +1,9 @@
 __pycache__
 .DS_Store
 env
+data
 
 *.pt
 *.pth
+*.hdf5
+*.h5

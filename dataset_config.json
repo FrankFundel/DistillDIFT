@@ -3,5 +3,10 @@
         "name": "PF-WILLOW",
         "path": "../data/PF-WILLOW",
         "load_size": [300, 200]
+    },
+    {
+        "name": "SPair-71k",
+        "path": "/export/group/datasets/SPair-71k",
+        "load_size": [300, 200]
     }
 ]

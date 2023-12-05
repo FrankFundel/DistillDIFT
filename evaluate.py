@@ -7,8 +7,7 @@ from utils.utils import compute_pck
 from models.luo import LuoModel
 from models.hedlin import HedlinModel
 
-from datasets.spair import SPairDataset
-from datasets.pfwillow import PFWillowDataset
+from datasets.dataset import PreprocessedDataset, SPairDataset, PFWillowDataset
 
 def evaluate(model, dataloader, load_size, pck_threshold):
     model.eval()
