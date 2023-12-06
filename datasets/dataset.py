@@ -46,10 +46,6 @@ class PreprocessedDataset(data.Dataset):
             source_image = self.transform(source_image)
             target_image = self.transform(target_image)
 
-        # Convert correspondence points to tensors
-        source_points = torch.from_numpy(source_points)
-        target_points = torch.from_numpy(target_points)
-
         # Return the image pair, correspondence points and bounding boxes (if they exist)
         sample = {
             'source_image': source_image,
@@ -83,8 +79,8 @@ class PFWillowDataset(data.Dataset):
                 source_image_path = os.path.join(self.dataset_directory, row[0].replace('PF-dataset/', ''))
                 target_image_path = os.path.join(self.dataset_directory, row[1].replace('PF-dataset/', ''))
 
-                source_points = np.array(list(zip(row[2:12], row[12:22]))).astype(np.float32) # X, Y
-                target_points = np.array(list(zip(row[22:32], row[32:]))).astype(np.float32) # X, Y
+                source_points = np.array(list(zip(row[2:12], row[12:22]))).astype(np.float16) # X, Y
+                target_points = np.array(list(zip(row[22:32], row[32:]))).astype(np.float16) # X, Y
 
                 data.append((source_image_path, target_image_path, source_points, target_points))
         return data
@@ -136,10 +132,10 @@ class SPairDataset(data.Dataset):
             category = annotation['category']
             source_image_path = os.path.join(self.images_dir, category, annotation['src_imname'])
             target_image_path = os.path.join(self.images_dir, category, annotation['trg_imname'])
-            source_points = np.array(annotation['src_kps']).astype(np.float32)
-            target_points = np.array(annotation['trg_kps']).astype(np.float32)
-            source_bbox = np.array(annotation['src_bndbox']).astype(np.float32)
-            target_bbox = np.array(annotation['trg_bndbox']).astype(np.float32)
+            source_points = np.array(annotation['src_kps']).astype(np.float16)
+            target_points = np.array(annotation['trg_kps']).astype(np.float16)
+            source_bbox = np.array(annotation['src_bndbox']).astype(np.float16)
+            target_bbox = np.array(annotation['trg_bndbox']).astype(np.float16)
 
             data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
         return data

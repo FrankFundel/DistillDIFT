@@ -13,9 +13,7 @@ Distilling the capability of large diffusion models for semantic correspondence.
     - SPair-71k: `bash datasets/download_spair.sh`
     - PF-WILLOW: `bash datasets/download_pfwillow.sh`
 
-2. (Optionally) Convert them to HDF5
-    - SPair-71k: `python datasets/preprocess_spair.py --dataset_directory --hdf5_filename`
-    - PF-WILLOW: `python datasets/preprocess_spair.py --dataset_directory --csv_file --hdf5_filename`
+2. (Optionally) Convert them to HDF5: `python datasets/preprocess.py --dataset_config`
 
 3. Run the evaluation script: `python evaluate.py [options]`
 

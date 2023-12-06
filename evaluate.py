@@ -7,10 +7,10 @@ import torch.utils.data as data
 from torchvision.transforms import Compose, ToTensor, CenterCrop
 
 from utils.correspondence import compute_pck
+from utils.dataset import read_config, load_dataset
+
 from models.luo import LuoModel
 from models.hedlin import HedlinModel
-
-from datasets.dataset import PreprocessedDataset, SPairDataset, PFWillowDataset
 
 def evaluate(model, dataloader, load_size, pck_threshold):
     model.eval()
@@ -40,7 +40,7 @@ def evaluate(model, dataloader, load_size, pck_threshold):
         target_points = target_points.permute(0, 2, 1)
 
         # run through model
-        predicted_points = model(source_images)
+        predicted_points = model(source_images, target_images, source_points)
 
         # calculate PCK values
         target_bounding_box = None
@@ -60,7 +60,8 @@ def evaluate(model, dataloader, load_size, pck_threshold):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('model', type=str, default='luo', choices=['luo'])
-    parser.add_argument('dataset_config', type=str, default='dataset_config.json')
+    parser.add_argument('--dataset_config', type=str, default='dataset_config.json')
+    parser.add_argument('--from_hdf5', action='store_true')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_workers', type=int, default=4)
@@ -70,6 +71,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     model = args.model
     dataset_config = args.dataset_config
+    from_hdf5 = args.from_hdf5
     device = args.device
     batch_size = args.batch_size
     num_workers = args.num_workers
@@ -91,21 +93,13 @@ if __name__ == '__main__':
     ])
 
     # Load dataset config
-    with open(dataset_config) as f:
-        dataset_config = json.load(f)
+    dataset_config = read_config(dataset_config)
     
     # Evaluate
-    for dataset in dataset_config:
-        dataset_name = dataset['name']
-        dataset_path = dataset['path']
-        load_size = dataset['load_size']
-
-        if dataset_name == 'SPair-71K':
-            dataset = SPairDataset(dataset_path, transform=transform)
-        elif dataset_name == 'PF-WILLOW':
-            dataset = PFWillowDataset(*dataset_path, transform=transform)
-
+    for config in dataset_config:
+        dataset = load_dataset(config, from_hdf5, transform)
         dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
+        load_size = 224
         pck_img, pck_bbox = evaluate(model, dataloader, load_size, pck_threshold)
-        print(f"Dataset: {dataset_name}, pck_img: {pck_img}, pck_bbox: {pck_bbox}")
+        print(f"Dataset: {config['name']}, pck_img: {pck_img}, pck_bbox: {pck_bbox}")

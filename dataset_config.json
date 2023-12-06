@@ -1,12 +1,11 @@
 [
     {
         "name": "PF-WILLOW",
-        "path": ["data/PF-WILLOW", "data/PF-WILLOW/test_pairs_pf.csv"],
-        "load_size": [300, 200]
+        "path": "/export/home/ra63des/DistillDIFT/data/PF-WILLOW",
+        "csv_path": "/export/home/ra63des/DistillDIFT/data/PF-WILLOW/test_pairs_pf.csv"
     },
     {
         "name": "SPair-71k",
-        "path": "/export/group/datasets/SPair-71k",
-        "load_size": [300, 200]
+        "path": "/export/group/datasets/SPair-71k"
     }
 ]

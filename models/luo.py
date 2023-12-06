@@ -11,7 +11,7 @@ class LuoModel(BaseModel):
         config_path = "replicate/luo/configs/real.yaml"
         _, self.diffusion_extractor, self.aggregation_network = load_models(config_path, device)
         
-    def __call__(self, source_images, target_images):
+    def __call__(self, source_images, target_images, source_points):
         # images must be tensor and normalized between -1 and 1
         images = torch.cat([source_images, target_images])
         
@@ -21,5 +21,5 @@ class LuoModel(BaseModel):
         source_features = diffusion_hyperfeatures[:b//2]
         target_features = diffusion_hyperfeatures[b//2:]
     
-        predicted_points = get_correspondences(source_features, target_features)
+        predicted_points = get_correspondences(source_features, target_features, source_points)
         return predicted_points
