@@ -1,13 +1,12 @@
 import torch
 import tqdm
 import argparse
-import json
 
 import torch.utils.data as data
-from torchvision.transforms import Compose, ToTensor, Resize
+from torchvision.transforms import Compose, ToTensor, Resize, InterpolationMode
 
 from utils.correspondence import compute_pck
-from utils.dataset import read_config, load_dataset
+from utils.dataset import read_config, load_dataset, PointResize
 
 from models.luo import LuoModel
 from models.hedlin import HedlinModel
@@ -26,16 +25,15 @@ def evaluate(model, dataloader, load_size, pck_threshold):
         source_images, target_images = batch['source_image'], batch['target_image']
         source_points, target_points = batch['source_points'], batch['target_points']
 
-        # load data on device
+        # load images on device
         source_images, target_images = source_images.to(device), target_images.to(device)
-        source_points, target_points = source_points.to(device), target_points.to(device)
         
         source_size = source_images.shape
         target_size = target_images.shape
 
         # swap from (x, y) to (y, x)
-        source_points = torch.flip(source_points, [2])
-        target_points = torch.flip(target_points, [2])
+        #source_points = torch.flip(source_points, [2])
+        #target_points = torch.flip(target_points, [2])
 
         # run through model
         predicted_points = model(source_images, target_images, source_points)
@@ -75,7 +73,7 @@ if __name__ == '__main__':
 
     # Load model
     if model == 'luo':
-        model = LuoModel(device)
+        model = LuoModel(batch_size, device)
     elif model == 'hedlin':
         model = HedlinModel()
 
@@ -86,8 +84,12 @@ if __name__ == '__main__':
     model.to(device)
 
     # Set transforms
-    transform = Compose([
-        Resize((512, 512)),
+    image_transform = Compose([
+        Resize((512, 512), interpolation=InterpolationMode.BILINEAR),
+        ToTensor()
+    ])
+    point_transform = Compose([
+        PointResize((512, 512)),
         ToTensor()
     ])
 
@@ -96,8 +98,22 @@ if __name__ == '__main__':
     
     # Evaluate
     for config in dataset_config:
-        dataset = load_dataset(config, transform)
-        dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        print(f"Evaluating dataset: {config['name']}")
+        dataset = load_dataset(config, image_transform, point_transform)
+
+        def collate_fn(batch):
+            source_images = torch.stack([sample['source_image'] for sample in batch])
+            target_images = torch.stack([sample['target_image'] for sample in batch])
+            source_points = torch.tensor([sample['source_points'] for sample in batch])
+            target_points = torch.tensor([sample['target_points'] for sample in batch])
+            return {
+                'source_image': source_images,
+                'target_image': target_images,
+                'source_points': source_points,
+                'target_points': target_points
+            }
+
+        dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
 
         load_size = 512
         with torch.inference_mode():

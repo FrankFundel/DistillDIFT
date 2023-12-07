@@ -11,10 +11,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from utils.dataset import read_config, load_dataset
 
-parser = argparse.ArgumentParser(description='Convert datasets into HDF5.')
-parser.add_argument('--dataset_config', type=str, default='dataset_config.json', help='Path to the dataset config file.')
-args = parser.parse_args()
-
 def convert_dataset(dataset_config):
     """
     Convert a dataset and save it as an HDF5 file.
@@ -48,6 +44,10 @@ def convert_dataset(dataset_config):
         print(f"Dataset {config['name']} converted.")
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Convert datasets into HDF5.')
+    parser.add_argument('--dataset_config', type=str, default='dataset_config.json', help='Path to the dataset config file.')
+    args = parser.parse_args()
+
     # Load dataset config file
     dataset_config = read_config(args.dataset_config)
 

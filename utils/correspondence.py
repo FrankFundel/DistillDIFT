@@ -9,7 +9,7 @@ def flatten_features(features):
 
 def normalize_features(features):
     # (b, w*h, c)
-    features = features / torch.linalg.norm(features, dim=-1)[:, :, None]
+    features = features / torch.linalg.norm(features, dim=-1).unsqueeze(-1)
     return features
 
 def points_to_idxs(points, load_size):
@@ -40,11 +40,11 @@ def compute_pck(predicted_points, target_points, load_size, pck_threshold=0.1, t
     return pck.sum(), pck.sum() / len(pck)
 
 
-def get_correspondences(source_features, target_features, source_points, load_size):
-    source_features = torch.nn.functional.interpolate(source_features, load_size, mode="bilinear")
-    target_features = torch.nn.functional.interpolate(target_features, load_size, mode="bilinear")
+def get_correspondences(source_features, target_features, source_points, original_size):
+    source_features = torch.nn.functional.interpolate(source_features, original_size, mode="bilinear")
+    target_features = torch.nn.functional.interpolate(target_features, original_size, mode="bilinear")
 
-    source_idx = torch.from_numpy(points_to_idxs(source_points, load_size)).long()
+    source_idx = points_to_idxs(source_points, original_size).long()
     # Select source_points in the flattened (w, h) dimension as source_idx
     source_features = flatten_features(source_features)
     target_features = flatten_features(target_features)

@@ -12,8 +12,8 @@ class ConvertedDataset(data.Dataset):
     Dataset class for converted datasets.
     """
 
-    def __init__(self, hdf5_filename, transform=None):
-        super(ConvertedDataset, self).__init__()
+    def __init__(self, hdf5_filename, image_transform=None, point_transform=None):
+        super().__init__()
 
         # Open the HDF5 file
         self.hdf5_file = h5py.File(hdf5_filename, 'r')
@@ -22,7 +22,8 @@ class ConvertedDataset(data.Dataset):
         self.image_pairs = list(self.hdf5_file.keys())
 
         # Store the transform
-        self.transform = transform
+        self.image_transform = image_transform
+        self.point_transform = point_transform
 
     def __len__(self):
         return len(self.image_pairs)
@@ -37,38 +38,77 @@ class ConvertedDataset(data.Dataset):
         target_image = Image.fromarray(image_pair['target_image'][()])
         source_points = image_pair['source_points'][()]
         target_points = image_pair['target_points'][()]
-        if 'source_bbox' in image_pair:
-            source_bbox = image_pair['source_bbox'][()]
-            target_bbox = image_pair['target_bbox'][()]
+        source_bbox = image_pair['source_bbox'][()]
+        target_bbox = image_pair['target_bbox'][()]
 
         # Apply the transform to the images if requested
-        if self.transform:
-            source_image = self.transform(source_image)
-            target_image = self.transform(target_image)
+        if self.image_transform:
+            source_image = self.image_transform(source_image)
+            target_image = self.image_transform(target_image)
+
+        # Apply the transform to the points if requested
+        if self.point_transform:
+            source_points = self.point_transform(source_points, source_image.size)
+            target_points = self.point_transform(target_points, target_image.size)
 
         # Return the image pair, correspondence points and bounding boxes (if they exist)
         sample = {
             'source_image': source_image,
             'target_image': target_image,
             'source_points': source_points,
-            'target_points': target_points
+            'target_points': target_points,
+            'source_bbox': source_bbox,
+            'target_bbox': target_bbox
         }
-        if 'source_bbox' in image_pair:
-            sample['source_bbox'] = source_bbox
-            sample['target_bbox'] = target_bbox
         return sample
 
+class CorrespondenceDataset(data.Dataset):
+    """
+    General dataset class for datasets with correspondence points.
+    """
 
-class PFWillowDataset(data.Dataset):
+    def __init__(self, dataset_directory, image_transform=None, point_transform=None, split='test'):
+        self.dataset_directory = dataset_directory
+        self.image_transform = image_transform
+        self.point_transform = point_transform
+        self.split = split
+        self.data = self.load_data()
+
+    def load_data(self):
+        raise NotImplementedError
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox = self.data[idx]
+
+        source_image = Image.open(source_image_path)
+        target_image = Image.open(target_image_path)
+
+        if self.image_transform:
+            source_image = self.image_transform(source_image)
+            target_image = self.image_transform(target_image)
+
+        if self.point_transform:
+            source_points = self.point_transform(source_points, source_image.size)
+            target_points = self.point_transform(target_points, target_image.size)
+
+        sample = {
+            'source_image': source_image,
+            'target_image': target_image,
+            'source_points': source_points,
+            'target_points': target_points,
+            'source_bbox': source_bbox,
+            'target_bbox': target_bbox
+        }
+        return sample
+
+class PFWillowDataset(CorrespondenceDataset):
     """
     Dataset class for the PF-Willow dataset.
     """
-
-    def __init__(self, dataset_directory, transform=None):
-        self.dataset_directory = dataset_directory
-        self.transform = transform
-        self.data = self.load_data()
-
+    
     def load_data(self):
         data = []
         csv_file = os.path.join(self.dataset_directory, 'test_pairs_pf.csv')
@@ -82,56 +122,36 @@ class PFWillowDataset(data.Dataset):
                 source_points = np.array(list(zip(row[2:12], row[12:22])), dtype=np.float16) # X, Y
                 target_points = np.array(list(zip(row[22:32], row[32:])), dtype=np.float16) # X, Y
 
-                data.append((source_image_path, target_image_path, source_points, target_points))
+                # use min and max to get the bounding box
+                source_bbox = np.array([source_points[:, 0].min(), source_points[:, 1].min(), source_points[:, 0].max(), source_points[:, 1].max()], dtype=np.float16)
+                target_bbox = np.array([target_points[:, 0].min(), target_points[:, 1].min(), target_points[:, 0].max(), target_points[:, 1].max()], dtype=np.float16)
+
+                # Convert from (x, y, x+w, y+h) to (x, y, w, h)
+                source_bbox[2:] -= source_bbox[:2]
+                target_bbox[2:] -= target_bbox[:2]
+
+                data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
         return data
 
-    def __len__(self):
-        return len(self.data)
 
-    def __getitem__(self, idx):
-        source_image_path, target_image_path, source_points, target_points = self.data[idx]
-
-        source_image = Image.open(source_image_path)
-        target_image = Image.open(target_image_path)
-
-        if self.transform:
-            source_image = self.transform(source_image)
-            target_image = self.transform(target_image)
-
-        return {
-            'source_image': source_image,
-            'target_image': target_image,
-            'source_points': source_points,
-            'target_points': target_points
-        }
-
-
-class SPairDataset(data.Dataset):
+class SPairDataset(CorrespondenceDataset):
     """
     Dataset class for the SPair-71k dataset.
     """
 
-    def __init__(self, dataset_directory, transform=None, split='test'):
-        self.images_dir = os.path.join(dataset_directory, 'JPEGImages')
-        self.annotations_dir = os.path.join(dataset_directory, 'PairAnnotation', split)
-        self.transform = transform
-
-        # Load annotation filenames
-        self.annotations_files = [f for f in os.listdir(self.annotations_dir) if f.endswith('.json')]
-        self.data = self.load_data()
-
-    def __len__(self):
-        return len(self.annotations_files)
-
     def load_data(self):
+        images_dir = os.path.join(self.dataset_directory, 'JPEGImages')
+        annotations_dir = os.path.join(self.dataset_directory, 'PairAnnotation', self.split)
+        annotations_files = [f for f in os.listdir(annotations_dir) if f.endswith('.json')]
+
         data = []
-        for annotation_file in self.annotations_files:
-            with open(os.path.join(self.annotations_dir, annotation_file), 'r') as file:
+        for annotation_file in annotations_files:
+            with open(os.path.join(annotations_dir, annotation_file), 'r') as file:
                 annotation = json.load(file)
 
             category = annotation['category']
-            source_image_path = os.path.join(self.images_dir, category, annotation['src_imname'])
-            target_image_path = os.path.join(self.images_dir, category, annotation['trg_imname'])
+            source_image_path = os.path.join(images_dir, category, annotation['src_imname'])
+            target_image_path = os.path.join(images_dir, category, annotation['trg_imname'])
             source_points = np.array(annotation['src_kps'], dtype=np.float16)
             target_points = np.array(annotation['trg_kps'], dtype=np.float16)
             source_bbox = np.array(annotation['src_bndbox'], dtype=np.float16)
@@ -144,35 +164,15 @@ class SPairDataset(data.Dataset):
             data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
         return data
 
-    def __getitem__(self, idx):
-        source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox = self.data[idx]
 
-        source_image = Image.open(source_image_path)
-        target_image = Image.open(target_image_path)
-
-        if self.transform:
-            source_image = self.transform(source_image)
-            target_image = self.transform(target_image)
-
-        return {
-            'source_image': source_image,
-            'target_image': target_image,
-            'source_points': source_points,
-            'target_points': target_points,
-            'source_bbox': source_bbox,
-            'target_bbox': target_bbox
-        }
-
-class CUBDataset(data.Dataset):
-    def __init__(self, dataset_directory, transform=None, split='test'):
-        self.dataset_directory = dataset_directory
-        self.images_dir = os.path.join(dataset_directory, 'images')
-        self.transform = transform
-        self.split = split
-
-        self.data = self.load_data()
+class CUBDataset(CorrespondenceDataset):
+    """
+    Dataset class for the CUB-200-2011 dataset.
+    """
 
     def load_data(self):
+        self.images_dir = os.path.join(self.dataset_directory, 'images')
+
         with open(os.path.join(self.dataset_directory, "images.txt"), "r") as f:
             images = [line.strip().split() for line in f.readlines()]
 
@@ -221,25 +221,3 @@ class CUBDataset(data.Dataset):
                 data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
         
         return data
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox = self.data[idx]
-
-        source_image = Image.open(source_image_path)
-        target_image = Image.open(target_image_path)
-
-        if self.transform:
-            source_image = self.transform(source_image)
-            target_image = self.transform(target_image)
-
-        return {
-            'source_image': source_image,
-            'target_image': target_image,
-            'source_points': source_points,
-            'target_points': target_points,
-            'source_bbox': source_bbox,
-            'target_bbox': target_bbox
-        }
