@@ -143,14 +143,14 @@ class ViTExtractor:
         model.interpolate_pos_encoding = types.MethodType(ViTExtractor._fix_pos_enc(patch_size, stride), model)
         return model
 
-    def preprocess(self, image_path: Union[str, Path],
+    def convert(self, image_path: Union[str, Path],
                    load_size: Union[int, Tuple[int, int]] = None, patch_size: int = 14) -> Tuple[torch.Tensor, Image.Image]:
         """
-        Preprocesses an image before extraction.
+        Convertes an image before extraction.
         :param image_path: path to image to be extracted.
-        :param load_size: optional. Size to resize image before the rest of preprocessing.
+        :param load_size: optional. Size to resize image before the rest of converting.
         :return: a tuple containing:
-                    (1) the preprocessed image as a tensor to insert the model of shape BxCxHxW.
+                    (1) the converted image as a tensor to insert the model of shape BxCxHxW.
                     (2) the pil image in relevant dimensions
         """
         def divisible_by_num(num, dim):
@@ -171,13 +171,13 @@ class ViTExtractor:
         prep_img = prep(pil_image)[None, ...]
         return prep_img, pil_image
 
-    def preprocess_pil(self, pil_image):
+    def convert_pil(self, pil_image):
         """
-        Preprocesses an image before extraction.
+        Convertes an image before extraction.
         :param image_path: path to image to be extracted.
-        :param load_size: optional. Size to resize image before the rest of preprocessing.
+        :param load_size: optional. Size to resize image before the rest of converting.
         :return: a tuple containing:
-                    (1) the preprocessed image as a tensor to insert the model of shape BxCxHxW.
+                    (1) the converted image as a tensor to insert the model of shape BxCxHxW.
                     (2) the pil image in relevant dimensions
         """
         prep = transforms.Compose([
@@ -379,8 +379,8 @@ if __name__ == "__main__":
     with torch.no_grad():
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         extractor = ViTExtractor(args.model_type, args.stride, device=device)
-        image_batch, image_pil = extractor.preprocess(args.image_path, args.load_size, args.patch_size)
-        print(f"Image {args.image_path} is preprocessed to tensor of size {image_batch.shape}.")
+        image_batch, image_pil = extractor.convert(args.image_path, args.load_size, args.patch_size)
+        print(f"Image {args.image_path} is converted to tensor of size {image_batch.shape}.")
         descriptors = extractor.extract_descriptors(image_batch.to(device), args.layer, args.facet, args.bin)
         print(f"Descriptors are of size: {descriptors.shape}")
         torch.save(descriptors, args.output_path)

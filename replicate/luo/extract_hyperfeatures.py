@@ -7,11 +7,14 @@ from PIL import Image
 import random
 import torch
 from tqdm import tqdm
+import sys
 
-from .archs.diffusion_extractor import DiffusionExtractor
-from .archs.aggregation_network import AggregationNetwork
-from .archs.stable_diffusion.resnet import collect_dims
-from .archs.correspondence_utils import process_image
+sys.path.append(os.path.dirname(__file__))
+
+from archs.diffusion_extractor import DiffusionExtractor
+from archs.aggregation_network import AggregationNetwork
+from archs.stable_diffusion.resnet import collect_dims
+from archs.correspondence_utils import process_image
 
 def load_models(config_path, device="cuda"):
     config = OmegaConf.load(config_path)

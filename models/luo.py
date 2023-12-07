@@ -10,6 +10,7 @@ class LuoModel(BaseModel):
         
         config_path = "replicate/luo/configs/real.yaml"
         _, self.diffusion_extractor, self.aggregation_network = load_models(config_path, device)
+        self.diffusion_extractor.unet.enable_xformers_memory_efficient_attention()
         
     def __call__(self, source_images, target_images, source_points):
         # images must be tensor and normalized between -1 and 1

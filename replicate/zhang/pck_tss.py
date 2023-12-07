@@ -203,9 +203,9 @@ def compute_flow(model, aug, source_img, target_img, save_path, batch_num=0, cat
                     img1_desc = process_features_and_mask(model, aug, img1_input, input_text=input_text, mask=False).reshape(1,1,-1, num_patches**2).permute(0,1,3,2)
                     img2_desc = process_features_and_mask(model, aug, img2_input, category[-1], input_text=input_text,  mask=mask).reshape(1,1,-1, num_patches**2).permute(0,1,3,2)
                 if FUSE_DINO:
-                    img1_batch = extractor.preprocess_pil(img1)
+                    img1_batch = extractor.convert_pil(img1)
                     img1_desc_dino = extractor.extract_descriptors(img1_batch.to(device), layer, facet)
-                    img2_batch = extractor.preprocess_pil(img2)
+                    img2_batch = extractor.convert_pil(img2)
                     img2_desc_dino = extractor.extract_descriptors(img2_batch.to(device), layer, facet)
 
             else:
@@ -216,10 +216,10 @@ def compute_flow(model, aug, source_img, target_img, save_path, batch_num=0, cat
                     img1_desc = processed_features1.reshape(1, 1, -1, num_patches**2).permute(0,1,3,2)
                     img2_desc = processed_features2.reshape(1, 1, -1, num_patches**2).permute(0,1,3,2)
                 if FUSE_DINO:
-                    img1_batch = extractor.preprocess_pil(img1)
+                    img1_batch = extractor.convert_pil(img1)
                     img1_desc_dino = extractor.extract_descriptors(img1_batch.to(device), layer, facet)
 
-                    img2_batch = extractor.preprocess_pil(img2)
+                    img2_batch = extractor.convert_pil(img2)
                     img2_desc_dino = extractor.extract_descriptors(img2_batch.to(device), layer, facet) # (1,1,3600,768)
 
 

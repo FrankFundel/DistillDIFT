@@ -25,6 +25,7 @@ class DiffusionExtractor:
         )
         self.num_timesteps = config["num_timesteps"]
         self.scheduler.set_timesteps(self.num_timesteps)
+        print(self.num_timesteps)
         self.generator = torch.Generator(self.device).manual_seed(config.get("seed", 0))
         self.batch_size = config.get("batch_size", 1)
 

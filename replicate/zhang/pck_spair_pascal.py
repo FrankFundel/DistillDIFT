@@ -20,7 +20,7 @@ import argparse
 from extractor_dino import ViTExtractor
 from extractor_sd import load_model, process_features_and_mask, get_mask
 
-def preprocess_kps_pad(kps, img_width, img_height, size):
+def convert_kps_pad(kps, img_width, img_height, size):
     # Once an image has been pre-processed via border (or zero) padding,
     # the location of key points needs to be updated. This function applies
     # that pre-processing to the key points so they are correctly located
@@ -79,11 +79,11 @@ def load_spair_data(path, size=256, category='cat', split='test', subsample=None
         kp_ixs = torch.tensor([int(id) for id in data["kps_ids"]]).view(-1, 1).repeat(1, 3)
         source_raw_kps = torch.cat([torch.tensor(data["src_kps"], dtype=torch.float), torch.ones(kp_ixs.size(0), 1)], 1)
         source_kps = blank_kps.scatter(dim=0, index=kp_ixs, src=source_raw_kps)
-        source_kps, src_x, src_y, src_scale = preprocess_kps_pad(source_kps, source_size[0], source_size[1], size)
+        source_kps, src_x, src_y, src_scale = convert_kps_pad(source_kps, source_size[0], source_size[1], size)
         
         target_raw_kps = torch.cat([torch.tensor(data["trg_kps"], dtype=torch.float), torch.ones(kp_ixs.size(0), 1)], 1)
         target_kps = blank_kps.scatter(dim=0, index=kp_ixs, src=target_raw_kps)
-        target_kps, trg_x, trg_y, trg_scale = preprocess_kps_pad(target_kps, target_size[0], target_size[1], size)
+        target_kps, trg_x, trg_y, trg_scale = convert_kps_pad(target_kps, target_size[0], target_size[1], size)
         
         thresholds.append(max(target_bbox[3] - target_bbox[1], target_bbox[2] - target_bbox[0])*trg_scale)
 
@@ -143,8 +143,8 @@ def load_pascal_data(path, size=256, category='cat', split='test', subsample=Non
         src_size=Image.open(src_fn).size
         trg_size=Image.open(trg_fn).size
         # print(src_size)
-        source_kps, src_x, src_y, src_scale = preprocess_kps_pad(point_coords_src, src_size[0], src_size[1], size)
-        target_kps, trg_x, trg_y, trg_scale = preprocess_kps_pad(point_coords_trg, trg_size[0], trg_size[1], size)
+        source_kps, src_x, src_y, src_scale = convert_kps_pad(point_coords_src, src_size[0], src_size[1], size)
+        target_kps, trg_x, trg_y, trg_scale = convert_kps_pad(point_coords_trg, trg_size[0], trg_size[1], size)
         kps.append(source_kps)
         kps.append(target_kps)
         files.append(src_fn)
@@ -222,9 +222,9 @@ def compute_pck(model, aug, save_path, files, kps, category, mask=False, dist='c
                     img1_desc = process_features_and_mask(model, aug, img1_input, input_text=input_text, mask=False).reshape(1,1,-1, num_patches**2).permute(0,1,3,2)
                     img2_desc = process_features_and_mask(model, aug, img2_input, category, input_text=input_text,  mask=mask).reshape(1,1,-1, num_patches**2).permute(0,1,3,2)
                 if FUSE_DINO:
-                    img1_batch = extractor.preprocess_pil(img1)
+                    img1_batch = extractor.convert_pil(img1)
                     img1_desc_dino = extractor.extract_descriptors(img1_batch.to(device), layer, facet)
-                    img2_batch = extractor.preprocess_pil(img2)
+                    img2_batch = extractor.convert_pil(img2)
                     img2_desc_dino = extractor.extract_descriptors(img2_batch.to(device), layer, facet)
 
             else:
@@ -255,9 +255,9 @@ def compute_pck(model, aug, save_path, files, kps, category, mask=False, dist='c
                     img1_desc = processed_features1.reshape(1, 1, -1, num_patches**2).permute(0,1,3,2)
                     img2_desc = processed_features2.reshape(1, 1, -1, num_patches**2).permute(0,1,3,2)
                 if FUSE_DINO:
-                    img1_batch = extractor.preprocess_pil(img1)
+                    img1_batch = extractor.convert_pil(img1)
                     img1_desc_dino = extractor.extract_descriptors(img1_batch.to(device), layer, facet)
-                    img2_batch = extractor.preprocess_pil(img2)
+                    img2_batch = extractor.convert_pil(img2)
                     img2_desc_dino = extractor.extract_descriptors(img2_batch.to(device), layer, facet)
             
             if CO_PCA_DINO:

@@ -4,7 +4,7 @@ import argparse
 import json
 
 import torch.utils.data as data
-from torchvision.transforms import Compose, ToTensor, CenterCrop
+from torchvision.transforms import Compose, ToTensor, Resize
 
 from utils.correspondence import compute_pck
 from utils.dataset import read_config, load_dataset
@@ -34,10 +34,8 @@ def evaluate(model, dataloader, load_size, pck_threshold):
         target_size = target_images.shape
 
         # swap from (x, y) to (y, x)
-        print(source_points.shape)
-        # TODO: THIS IS NOT RIGHT
-        source_points = source_points.permute(0, 2, 1)
-        target_points = target_points.permute(0, 2, 1)
+        source_points = torch.flip(source_points, [2])
+        target_points = torch.flip(target_points, [2])
 
         # run through model
         predicted_points = model(source_images, target_images, source_points)
@@ -61,8 +59,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('model', type=str, default='luo', choices=['luo'])
     parser.add_argument('--dataset_config', type=str, default='dataset_config.json')
-    parser.add_argument('--from_hdf5', action='store_true')
-    parser.add_argument('--device', type=str, default='cuda:0')
+    parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--pck_threshold', type=float, default=0.1)
@@ -71,7 +68,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     model = args.model
     dataset_config = args.dataset_config
-    from_hdf5 = args.from_hdf5
     device = args.device
     batch_size = args.batch_size
     num_workers = args.num_workers
@@ -84,12 +80,15 @@ if __name__ == '__main__':
         model = HedlinModel()
 
     device = torch.device(device)
+    if device.type == 'cuda' and torch.cuda.device_count() > 1:
+        model = torch.nn.DataParallel(model)
+        print(f"Using {torch.cuda.device_count()} GPUs")
     model.to(device)
 
     # Set transforms
     transform = Compose([
-        ToTensor(),
-        CenterCrop(256)
+        Resize((512, 512)),
+        ToTensor()
     ])
 
     # Load dataset config
@@ -97,9 +96,10 @@ if __name__ == '__main__':
     
     # Evaluate
     for config in dataset_config:
-        dataset = load_dataset(config, from_hdf5, transform)
+        dataset = load_dataset(config, transform)
         dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-        load_size = 224
-        pck_img, pck_bbox = evaluate(model, dataloader, load_size, pck_threshold)
+        load_size = 512
+        with torch.inference_mode():
+            pck_img, pck_bbox = evaluate(model, dataloader, load_size, pck_threshold)
         print(f"Dataset: {config['name']}, pck_img: {pck_img}, pck_bbox: {pck_bbox}")
