@@ -67,7 +67,7 @@ def flatten_feats(feats):
 
 def normalize_feats(feats):
     # (b, w*h, c)
-    feats = feats / torch.linalg.norm(feats, dim=-1)[:, :, None]
+    feats = feats / torch.linalg.norm(feats, dim=-1).unsqueeze(-1)
     return feats
 
 def batch_cosine_sim(img1_feats, img2_feats, flatten=True, normalize=True, low_memory=False):
@@ -110,7 +110,7 @@ def find_nn_correspondences(sims):
 
     return points1, points2
 
-def find_nn_source_correspondences(img1_feats, img2_feats, source_points, output_size, load_size):
+def find_nn_source_correspondences(img1_feats, img2_feats, source_points, load_size):
     """
     Precompute nearest neighbor of source_points in img1 to target_points in img2.
     """

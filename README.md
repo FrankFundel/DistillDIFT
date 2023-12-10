@@ -2,9 +2,7 @@
 Distilling the capability of large diffusion models for semantic correspondence.
 
 # ToDo
-- fix point/image preprocessing
 - use convert('RGB') in dataset class
-- fix float16 error
 - DataParallel
 
 # Related Work

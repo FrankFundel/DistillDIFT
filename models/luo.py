@@ -2,7 +2,7 @@ import torch
 from omegaconf import OmegaConf
 
 from .base import BaseModel
-from utils.correspondence import get_correspondences
+from utils.correspondence import compute_correspondence
 from replicate.luo.extract_hyperfeatures import load_models
 
 class LuoModel(BaseModel):
@@ -21,15 +21,18 @@ class LuoModel(BaseModel):
         self.diffusion_extractor.unet.enable_xformers_memory_efficient_attention()
         
     def __call__(self, source_images, target_images, source_points):
-        # images must be tensor and normalized between -1 and 1
-        images = torch.cat([source_images, target_images]).type(torch.float16)
-        images = 2 * images - 1
+        images = torch.cat([source_images, target_images]).type(torch.float16) # TODO: do this in dataloader
         
         features, _ = self.diffusion_extractor.forward(images)
         b, s, l, w, h = features.shape
         diffusion_hyperfeatures = self.aggregation_network(features.float().view((b, -1, w, h)))
-        source_features = diffusion_hyperfeatures[:b//2]
-        target_features = diffusion_hyperfeatures[b//2:]
+        source_features = diffusion_hyperfeatures[:b//2].cpu()
+        target_features = diffusion_hyperfeatures[b//2:].cpu()
 
-        predicted_points = get_correspondences(source_features, target_features, source_points, (512, 512))
+        predicted_points = []
+        for i in range(b-1):
+            predicted_points.append(compute_correspondence(source_features[i].unsqueeze(0),
+                                                           target_features[i].unsqueeze(0),
+                                                           source_points[i].unsqueeze(0),
+                                                           (512, 512)))
         return predicted_points
