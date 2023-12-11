@@ -6,9 +6,11 @@ from utils.correspondence import compute_correspondence
 from replicate.luo.extract_hyperfeatures import load_models
 
 class LuoModel(BaseModel):
-    def __init__(self, batch_size, device="cuda"):
+    def __init__(self, batch_size, image_size, device="cuda"):
         super(LuoModel, self).__init__()
 
+        self.image_size = image_size
+        
         config_path = "replicate/luo/configs/real.yaml"
 
         # Adjust config
@@ -34,5 +36,5 @@ class LuoModel(BaseModel):
             predicted_points.append(compute_correspondence(source_features[i].unsqueeze(0),
                                                            target_features[i].unsqueeze(0),
                                                            source_points[i].unsqueeze(0),
-                                                           (512, 512)))
+                                                           self.image_size).squeeze(0))
         return predicted_points

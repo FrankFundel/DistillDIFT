@@ -1,6 +1,5 @@
 import torch
 import torchvision
-import numpy as np
 from PIL import Image
 
 def rescale_points(points, old_size, new_size):
@@ -16,7 +15,7 @@ def rescale_bbox(bbox, old_size, new_size):
     return bbox
 
 def preprocess_image(image_pil, size):
-    image_pil = image_pil.resize(size, Image.BILINEAR)
+    image_pil = image_pil.convert('RGB').resize(size, Image.BILINEAR)
     image = torchvision.transforms.ToTensor()(image_pil) # range [0, 1]
     image = 2 * image - 1 # Normalize to [-1, 1]
     return image
@@ -72,6 +71,6 @@ def compute_pck(predicted_points, target_points, size, threshold=0.1, target_bbo
     if target_bbox is None:
         pck = distances <= threshold * max(size)
     else:
-        left, top, right, bottom = target_bbox
-        pck = distances <= threshold * max(right - left, bottom - top)
+        y1, x1, y2, x2 = target_bbox
+        pck = distances <= threshold * max(x2 - x1, y2 - y1)
     return pck.sum()

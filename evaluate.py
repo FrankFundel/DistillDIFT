@@ -33,10 +33,10 @@ def evaluate(model, dataloader, load_size, pck_threshold):
         predicted_points = model(source_images, target_images, source_points)
 
         # calculate PCK values
-        for i in range(len(predicted_points)):
+        for i in range(len(source_points)):
             pck_img += compute_pck(predicted_points[i], target_points[i], load_size, pck_threshold)
             pck_bbox += compute_pck(predicted_points[i], target_points[i], load_size, pck_threshold, target_bbox[i])
-            keypoints += len(predicted_points[i])
+            keypoints += len(source_points[i])
 
         # update progress bar
         pbar.update(1)
@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
     # Load model
     if model == 'luo':
-        model = LuoModel(batch_size, device)
+        model = LuoModel(batch_size, image_size, device)
     elif model == 'hedlin':
         model = HedlinModel()
 
@@ -82,12 +82,13 @@ if __name__ == '__main__':
 
     # Define preprocessor
     def preprocess(sample):
+        size = sample['source_image'].size
         sample['source_image'] = preprocess_image(sample['source_image'], image_size)
         sample['target_image'] = preprocess_image(sample['target_image'], image_size)
-        sample['source_points'] = preprocess_points(sample['source_points'], sample['source_image'].shape, image_size)
-        sample['target_points'] = preprocess_points(sample['target_points'], sample['target_image'].shape, image_size)
-        sample['source_bbox'] = preprocess_bbox(sample['source_bbox'], sample['source_image'].shape, image_size)
-        sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], sample['target_image'].shape, image_size)
+        sample['source_points'] = preprocess_points(sample['source_points'], size, image_size)
+        sample['target_points'] = preprocess_points(sample['target_points'], size, image_size)
+        sample['source_bbox'] = preprocess_bbox(sample['source_bbox'], size, image_size)
+        sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], size, image_size)
         return sample
     
     # Evaluate

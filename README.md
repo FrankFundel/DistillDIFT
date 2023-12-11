@@ -2,8 +2,8 @@
 Distilling the capability of large diffusion models for semantic correspondence.
 
 # ToDo
-- use convert('RGB') in dataset class
 - DataParallel
+- create evaluation notebook for single samples and visualization
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
