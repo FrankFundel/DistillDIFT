@@ -32,7 +32,7 @@ class LuoModel(BaseModel):
         target_features = diffusion_hyperfeatures[b//2:].cpu()
 
         predicted_points = []
-        for i in range(b-1):
+        for i in range(b//2):
             predicted_points.append(compute_correspondence(source_features[i].unsqueeze(0),
                                                            target_features[i].unsqueeze(0),
                                                            source_points[i].unsqueeze(0),

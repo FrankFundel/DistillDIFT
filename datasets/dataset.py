@@ -1,6 +1,7 @@
 import itertools
 import torch
 import torch.utils.data as data
+import numpy as np
 import h5py
 import json
 import os
@@ -106,6 +107,7 @@ class PFWillowDataset(CorrespondenceDataset):
                 source_image_path = os.path.join(self.dataset_directory, row[0].replace('PF-dataset/', ''))
                 target_image_path = os.path.join(self.dataset_directory, row[1].replace('PF-dataset/', ''))
 
+                row[2:] = list(map(float, row[2:]))
                 source_points = torch.tensor(list(zip(row[2:12], row[12:22])), dtype=torch.float16) # X, Y
                 target_points = torch.tensor(list(zip(row[22:32], row[32:])), dtype=torch.float16) # X, Y
 
@@ -197,13 +199,14 @@ class CUBDataset(CorrespondenceDataset):
             for source, target in itertools.combinations(class_images, 2):
                 source_image_path = os.path.join(self.images_dir, source[1])
                 target_image_path = os.path.join(self.images_dir, target[1])
-                source_points = torch.tensor(part_locs[source[0]], dtype=torch.float16)
-                target_points = torch.tensor(part_locs[target[0]], dtype=torch.float16)
+                
+                source_points = np.array(part_locs[source[0]], dtype=float)
+                target_points = np.array(part_locs[target[0]], dtype=float)
 
                 # Filter out points that are not visible in either of the images
-                visible_points = torch.logical_and(source_points[:, 2], target_points[:, 2])
-                source_points = source_points[visible_points][:, :2]
-                target_points = target_points[visible_points][:, :2]
+                visible_points = np.logical_and(source_points[:, 2], target_points[:, 2])
+                source_points = torch.tensor(source_points[visible_points][:, :2], dtype=torch.float16)
+                target_points = torch.tensor(target_points[visible_points][:, :2], dtype=torch.float16)
 
                 source_bbox = torch.tensor(bounding_boxes[source[0]], dtype=torch.float16)
                 target_bbox = torch.tensor(bounding_boxes[target[0]], dtype=torch.float16)

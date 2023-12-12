@@ -1,7 +1,7 @@
 weights_path: /export/home/ra63des/DistillDIFT/replicate/luo/weights/aggregation_network.pt
 diffusion_mode: inversion
 output_resolution: 64
-batch_size: 2
+batch_size: 16
 prompt: ''
 negative_prompt: ''
 guidance_scale: -1

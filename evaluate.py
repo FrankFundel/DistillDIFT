@@ -40,7 +40,7 @@ def evaluate(model, dataloader, image_size, pck_threshold):
 
         # update progress bar
         pbar.update(1)
-        pbar.set_description(f"pck_img: {pck_img / keypoints}, pck_bbox: {pck_bbox / keypoints}")
+        pbar.set_postfix({'pck_img': pck_img / keypoints, 'pck_bbox': pck_bbox / keypoints})
 
     pbar.close()
     return pck_img / keypoints, pck_bbox / keypoints
