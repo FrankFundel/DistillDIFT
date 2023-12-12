@@ -25,6 +25,11 @@ def preprocess_points(points, old_size, new_size):
     points = points[:, [1, 0]] # flip x and y axis to match image
     return points
 
+def postprocess_points(points, old_size, new_size):
+    points = points[:, [1, 0]] # flip x and y axis to match image
+    points = rescale_points(points, old_size, new_size) # [N, 2]
+    return points
+
 def preprocess_bbox(bbox, old_size, new_size):
     bbox = rescale_bbox(bbox, old_size, new_size) # [4]
     bbox = bbox[[1, 0, 3, 2]] # flip x and y axis to match image

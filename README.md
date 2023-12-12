@@ -2,7 +2,7 @@
 Distilling the capability of large diffusion models for semantic correspondence.
 
 # ToDo
-- DataParallel
+- DistributedDataParallel
 - create evaluation notebook for single samples and visualization
 
 # Related Work
