@@ -12,6 +12,7 @@ class LuoModel(BaseModel):
     def __init__(self, batch_size, image_size, device="cuda"):
         super(LuoModel, self).__init__()
 
+        self.batch_size = batch_size
         self.image_size = image_size
         
         config_path = "replicate/luo/configs/real.yaml"
@@ -31,13 +32,13 @@ class LuoModel(BaseModel):
         features, _ = self.diffusion_extractor.forward(images)
         b, s, l, w, h = features.shape
         diffusion_hyperfeatures = self.aggregation_network(features.float().view((b, -1, w, h)))
-        source_features = diffusion_hyperfeatures[:b//2].cpu()
-        target_features = diffusion_hyperfeatures[b//2:].cpu()
+        source_features = diffusion_hyperfeatures[:self.batch_size]
+        target_features = diffusion_hyperfeatures[self.batch_size:]
 
         predicted_points = []
-        for i in range(b//2):
+        for i in range(self.batch_size):
             predicted_points.append(compute_correspondence(source_features[i].unsqueeze(0),
                                                            target_features[i].unsqueeze(0),
                                                            source_points[i].unsqueeze(0),
-                                                           self.image_size).squeeze(0))
+                                                           self.image_size).squeeze(0).cpu())
         return predicted_points
