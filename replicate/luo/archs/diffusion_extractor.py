@@ -29,7 +29,7 @@ class DiffusionExtractor:
         self.generator = torch.Generator(self.device).manual_seed(config.get("seed", 0))
         self.batch_size = config.get("batch_size", 1)
 
-        self.unet, self.vae, self.clip, self.clip_tokenizer = init_models(device=self.device, model_id=config["model_id"])
+        self.unet, self.vae, self.clip, self.clip_tokenizer, self.pipe = init_models(device=self.device, model_id=config["model_id"])
         self.prompt = config.get("prompt", "")
         self.negative_prompt = config.get("negative_prompt", "")
         self.change_cond(self.prompt, "cond")

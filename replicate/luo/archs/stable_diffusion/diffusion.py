@@ -173,7 +173,7 @@ def init_models(
     freeze_weights(unet)
     freeze_weights(vae)
     freeze_weights(clip)
-  return unet, vae, clip, clip_tokenizer
+  return unet, vae, clip, clip_tokenizer, pipe
 
 def collect_and_resize_feats(unet, idxs, timestep, resolution=-1):
   latent_feats = collect_feats(unet, idxs=idxs)

@@ -47,9 +47,9 @@ def evaluate(model, dataloader, image_size, pck_threshold):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('model', type=str, default='luo', choices=['luo'])
+    parser.add_argument('model', type=str, default='luo', choices=['luo', 'hedlin'])
     parser.add_argument('--dataset_config', type=str, default='dataset_config.json')
-    parser.add_argument('--image_size', type=tuple, default=(224, 224)) # 512, 512
+    parser.add_argument('--image_size', type=tuple, default=(512, 512))
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_samples', type=int, default=None)
@@ -58,22 +58,24 @@ if __name__ == '__main__':
 
     # Parse arguments
     args = parser.parse_args()
-    model = args.model
+    model_type = args.model
     dataset_config = args.dataset_config
     image_size = args.image_size
-    device = args.device
+    device_type = args.device
     batch_size = args.batch_size
     num_samples = args.num_samples
     num_workers = args.num_workers
     pck_threshold = args.pck_threshold
 
     # Load model
-    if model == 'luo':
-        model = LuoModel(batch_size, image_size, device)
-    elif model == 'hedlin':
-        model = HedlinModel()
+    if model_type == 'luo':
+        image_size = (224, 224)
+        model = LuoModel(batch_size, image_size, device_type)
+    elif model_type == 'hedlin':
+        image_size = (512, 512)
+        model = HedlinModel(image_size, device_type)
 
-    device = torch.device(device)
+    device = torch.device(device_type)
     if device.type == 'cuda' and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
         print(f"Using {torch.cuda.device_count()} GPUs")
@@ -114,6 +116,8 @@ if __name__ == '__main__':
         
         dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
 
-        with torch.no_grad():
+        #with torch.no_grad():
+        with torch.set_grad_enabled(model_type == 'hedlin'):
             pck_img, pck_bbox = evaluate(model, dataloader, image_size, pck_threshold)
+
         print(f"Dataset: {config['name']}, pck_img: {pck_img}, pck_bbox: {pck_bbox}")

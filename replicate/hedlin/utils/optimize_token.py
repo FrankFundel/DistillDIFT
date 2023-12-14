@@ -17,7 +17,11 @@ import torch
 from diffusers import StableDiffusionPipeline, DDIMScheduler
 import numpy as np
 import abc
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "."))
 import ptp_utils
+
 from PIL import Image
 
 import torch.nn.functional as F
@@ -45,7 +49,8 @@ def load_ldm(device, type="CompVis/stable-diffusion-v1-4"):
     MAX_NUM_WORDS = 77
     scheduler.set_timesteps(NUM_DDIM_STEPS)
     
-    ldm = StableDiffusionPipeline.from_pretrained(type, use_auth_token=MY_TOKEN, scheduler=scheduler).to(device)
+    ldm = StableDiffusionPipeline.from_pretrained(type, use_auth_token=MY_TOKEN, scheduler=scheduler, 
+                                                  revision="fp16", torch_dtype=torch.float16).to(device)
 
     for param in ldm.vae.parameters():
         param.requires_grad = False
@@ -192,7 +197,7 @@ def image2latent(model, image, device):
         else:
             # print the max and min values of the image
             image = torch.from_numpy(image).float() * 2 - 1
-            image = image.permute(2, 0, 1).unsqueeze(0).to(device)
+            image = image.permute(2, 0, 1).unsqueeze(0).to(device).type(torch.float16)
             latents = model.vae.encode(image)['latent_dist'].mean
             latents = latents * 0.18215
     return latents
@@ -532,7 +537,7 @@ def optimize_prompt(ldm, image, pixel_loc, context=None, device="cuda", num_step
         gt_maps = gt_maps.reshape(1, -1).repeat(num_maps, 1)
         attention_maps = attention_maps.reshape(num_maps, -1)
         
-        loss = torch.nn.MSELoss()(attention_maps, gt_maps)
+        loss = torch.nn.MSELoss()(attention_maps, gt_maps.type(torch.float16))
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
