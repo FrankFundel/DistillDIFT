@@ -13,5 +13,5 @@ class BaseModel(nn.Module):
         super(BaseModel, self).__init__()
         pass
 
-    def __call__(self, source_images, target_images):
+    def __call__(self, source_images, target_images, source_points):
         pass

@@ -11,6 +11,7 @@ from utils.correspondence import preprocess_image, preprocess_points, preprocess
 from models.luo import LuoModel
 from models.hedlin import HedlinModel
 from models.tang import TangModel
+from models.zhang import ZhangModel
 
 def evaluate(model, dataloader, image_size, pck_threshold):
     model.eval()
@@ -48,7 +49,7 @@ def evaluate(model, dataloader, image_size, pck_threshold):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('model', type=str, default='luo', choices=['luo', 'hedlin', 'tang'])
+    parser.add_argument('model', type=str, default='luo', choices=['luo', 'hedlin', 'tang', 'zhang'])
     parser.add_argument('--dataset_config', type=str, default='dataset_config.json')
     parser.add_argument('--image_size', type=tuple, default=(512, 512))
     parser.add_argument('--device', type=str, default='cuda')
@@ -80,6 +81,10 @@ if __name__ == '__main__':
         image_size = (768, 768)
         batch_size = 1
         model = TangModel(image_size, device_type)
+    elif model_type == 'zhang':
+        image_size = (960, 960)
+        batch_size = 1
+        model = ZhangModel(1, image_size, device_type)
 
     device = torch.device(device_type)
     if device.type == 'cuda' and torch.cuda.device_count() > 1:
