@@ -38,6 +38,13 @@ class HedlinModel(BaseModel):
         source_images, target_images, source_points = source_images[0].unsqueeze(0), target_images[0].unsqueeze(0), source_points[0].unsqueeze(0)
         source_points = source_points[:, :, [1, 0]] # flip x and y axis again
         source_points = source_points.permute(0, 2, 1) # (1, 2, N)
+        # Back to PIL image
+        source_image = (source_images[0] + 1) / 2
+        source_image = source_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+        source_images = [source_image]
+        target_image = (target_images[0] + 1) / 2
+        target_image = target_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+        target_images = [target_image]
 
         # Initialize
         est_keypoints = -1 * torch.ones_like(source_points)
@@ -73,4 +80,5 @@ class HedlinModel(BaseModel):
             est_keypoints[0, :, j] = (max_val+0.5)
 
         est_keypoints = est_keypoints.permute(0, 2, 1) # (1, N, 2)
+        est_keypoints = est_keypoints[:, :, [1, 0]] # flip x and y axis again
         return est_keypoints

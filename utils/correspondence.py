@@ -78,4 +78,4 @@ def compute_pck(predicted_points, target_points, size, threshold=0.1, target_bbo
     else:
         y1, x1, y2, x2 = target_bbox
         pck = distances <= threshold * max(x2 - x1, y2 - y1)
-    return pck.sum()
+    return pck.sum().item()

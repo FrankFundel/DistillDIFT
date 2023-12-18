@@ -21,8 +21,8 @@ import torch.nn.functional as F
 
 
 def diffusion_step(model, controller, latents, context, t, guidance_scale=None, cfg = True):
-    latents = latents.type(torch.float16)
-    context = context.type(torch.float16)
+    #latents = latents.type(torch.float16)
+    #context = context.type(torch.float16)
     if cfg:
         latents_input = torch.cat([latents] * 2)
         noise_pred = model.unet(latents_input, t, encoder_hidden_states=context)["sample"]

@@ -15,15 +15,17 @@ class LuoModel(BaseModel):
         self.batch_size = batch_size
         self.image_size = image_size
         
-        config_path = "replicate/luo/configs/real.yaml"
+        config_path = "replicate/luo/configs/test.yaml"
 
         # Adjust config
         config = OmegaConf.load(config_path)
         config = OmegaConf.to_container(config, resolve=True)
         config["batch_size"] = batch_size * 2
+        config["load_resolution"] = image_size[0]
         OmegaConf.save(config, config_path)
         
         _, self.diffusion_extractor, self.aggregation_network = load_models(config_path, device)
+        self.diffusion_extractor.pipe.enable_attention_slicing()
         self.diffusion_extractor.pipe.enable_xformers_memory_efficient_attention()
         
     def __call__(self, source_images, target_images, source_points):

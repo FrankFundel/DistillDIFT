@@ -275,7 +275,8 @@ class CustomUNet2DConditionModel(UNet2DConditionModel):
         
         return features
 
-# This is used to perform a single timestep of the diffusion model, instead of the whole diffusion process
+# This is used to perform a single timestep of the diffusion model, instead of the whole diffusion process.
+# This way, steps that are not needed can be skipped, which saves a lot of time.
 class OneStepSDPipeline(StableDiffusionPipeline):
     @torch.no_grad()
     def __call__(
@@ -432,6 +433,11 @@ class SDHookExtractor:
                 if layer_counter in layers:
                     hooks.append(l.register_forward_hook(self.save_fn(layer_counter)))
                 layer_counter += 1
+            if block.upsamplers is not None:
+                for l in block.upsamplers:
+                    if layer_counter in layers:
+                        hooks.append(l.register_forward_hook(self.save_fn(layer_counter)))
+                    layer_counter += 1
 
         # Embed prompt
         prompt_embeddings = self.pipe._encode_prompt(

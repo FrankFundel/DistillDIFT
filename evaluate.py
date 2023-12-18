@@ -22,27 +22,27 @@ def evaluate(model, dataloader, image_size, pck_threshold):
     pck_bbox = 0
     keypoints = 0
     
-    for batch in tqdm.tqdm(dataloader):
-        # get data
+    for batch in dataloader:
+        # Get data
         source_images, target_images = batch['source_image'], batch['target_image']
         source_points, target_points = batch['source_points'], batch['target_points']
         target_bbox = batch['target_bbox']
 
-        # load images on device
+        # Load images on device
         source_images, target_images = source_images.to(device), target_images.to(device)
 
-        # run through model
+        # Run through model
         predicted_points = model(source_images, target_images, source_points)
 
-        # calculate PCK values
+        # Calculate PCK values
         for i in range(len(source_points)):
             pck_img += compute_pck(predicted_points[i], target_points[i], image_size, pck_threshold)
             pck_bbox += compute_pck(predicted_points[i], target_points[i], image_size, pck_threshold, target_bbox[i])
             keypoints += len(source_points[i])
 
-        # update progress bar
+        # Update progress bar
         pbar.update(1)
-        pbar.set_postfix({'pck_img': pck_img / keypoints, 'pck_bbox': pck_bbox / keypoints})
+        pbar.set_postfix({'PCK_img': (pck_img / keypoints) * 100, 'PCK_bbox': (pck_bbox / keypoints) * 100})
 
     pbar.close()
     return pck_img / keypoints, pck_bbox / keypoints
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_samples', type=int, default=None)
-    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--pck_threshold', type=float, default=0.1)
 
     # Parse arguments
@@ -107,13 +107,16 @@ if __name__ == '__main__':
         sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], target_size, image_size)
         return sample
     
+    # Print seperator
+    print(f"\n{'='*30} Evaluate {model_type} {'='*40}\n")
+
     # Evaluate
     for config in dataset_config:
-        print(f"Evaluating dataset: {config['name']}")
+        print(f"Dataset: {config['name']}")
         dataset = load_dataset(config, preprocess)
 
         if num_samples is not None:
-            dataset = data.Subset(dataset, np.arange(num_samples))
+            dataset = data.Subset(dataset, np.arange(min(num_samples, len(dataset))))
 
         def collate_fn(batch):
             return {
@@ -125,10 +128,15 @@ if __name__ == '__main__':
                 'target_bbox': [sample['target_bbox'] for sample in batch]
             }
         
-        dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
+        dataloader = data.DataLoader(dataset,
+                                     batch_size=batch_size,
+                                     shuffle=False,
+                                     num_workers=num_workers,
+                                     drop_last=(model_type == 'luo'),
+                                     collate_fn=collate_fn)
 
-        #with torch.no_grad():
+        # with torch.no_grad():
         with torch.set_grad_enabled(model_type == 'hedlin'):
             pck_img, pck_bbox = evaluate(model, dataloader, image_size, pck_threshold)
 
-        print(f"Dataset: {config['name']}, pck_img: {pck_img}, pck_bbox: {pck_bbox}")
+        print(f"PCK_img: {pck_img * 100:.2f}, PCK_bbox: {pck_bbox * 100:.2f}\n")

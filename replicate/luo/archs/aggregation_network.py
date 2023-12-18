@@ -56,7 +56,7 @@ class AggregationNetwork(nn.Module):
         """
         output_feature = None
         start = 0
-        mixing_weights = torch.nn.functional.softmax(self.mixing_weights)
+        mixing_weights = torch.nn.functional.softmax(self.mixing_weights, dim=0)
         for i in range(len(mixing_weights)):
             # Share bottleneck layers across timesteps
             bottleneck_layer = self.bottleneck_layers[i % len(self.feature_dims)]

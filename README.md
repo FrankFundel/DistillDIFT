@@ -2,6 +2,8 @@
 Distilling the capability of large diffusion models for semantic correspondence.
 
 # ToDo
+- Include category in datasets
+- Rerun tang and zhang model with category
 - DistributedDataParallel
 
 # Related Work
@@ -25,6 +27,10 @@ Distilling the capability of large diffusion models for semantic correspondence.
 
 4. Run the evaluation script: `python evaluate.py [options]`
     - Make sure to do set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0,1`
+    - Some models need a different diffusers version:
+        - hedlin: `diffusers==0.8.0`
+        - tang: `diffusers==0.15.0`
+        - luo: `diffusers==0.14.0`
 
 # Training
 
@@ -33,3 +39,4 @@ _To be continued..._
 # Demos
 
 - Dataset exploration: `datasets/explore.ipynb`
+- Evaluation demo: `eval_demo.ipynb`

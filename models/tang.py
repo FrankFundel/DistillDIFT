@@ -17,8 +17,8 @@ class TangModel(BaseModel):
         self.ensemble_size = 8
 
     def __call__(self, source_images, target_images, source_points):
-        category = ''
-        prompt = f'a photo of a {category}'
+        #prompt = f'a photo of a {category}'
+        prompt = 'A picture'
         source_features = self.dift.forward(source_images, prompt=prompt, ensemble_size=self.ensemble_size) # [1, c, h, w]
         target_features = self.dift.forward(target_images, prompt=prompt, ensemble_size=self.ensemble_size) # [1, c, h, w]
 
