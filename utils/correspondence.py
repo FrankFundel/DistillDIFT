@@ -16,7 +16,7 @@ def rescale_bbox(bbox, old_size, new_size):
 
 def preprocess_image(image_pil, size):
     image_pil = image_pil.convert('RGB').resize(size, Image.BILINEAR)
-    image = torchvision.transforms.ToTensor()(image_pil) # range [0, 1]
+    image = torchvision.transforms.ToTensor()(image_pil) # [C, H, W] and range [0, 1]
     image = 2 * image - 1 # Normalize to [-1, 1]
     return image
 

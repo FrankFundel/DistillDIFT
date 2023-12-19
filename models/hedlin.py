@@ -7,12 +7,13 @@ class HedlinModel(BaseModel):
     """
     Model from Hedlin et al. (https://arxiv.org/abs/2305.15581)
     """
-    def __init__(self, image_size=(512, 512), device="cuda"):
+    def __init__(self, image_size=(512, 512), float16=False, device="cuda"):
         super(HedlinModel, self).__init__()
 
         self.device = device
         self.image_size = image_size
         self.upsample_res = image_size[0]
+        self.float16 = float16
 
         # Default values from Hedlin et al.
         self.layers = [5, 6, 7, 8]
@@ -22,10 +23,10 @@ class HedlinModel(BaseModel):
         self.noise_level = 8
         self.sigma = 27.97853316316864
         self.flip_prob = 0.0
-        self.crop_percent = 93.16549294381423
+        self.crop_percent = 100 #93.16549294381423
         self.num_iterations = 20
 
-        self.model = load_ldm(self.device, 'CompVis/stable-diffusion-v1-4')
+        self.model = load_ldm(self.device, 'CompVis/stable-diffusion-v1-4', float16=self.float16)
         self.model.enable_xformers_memory_efficient_attention()
     
     def __call__(self, source_images, target_images, source_points):
