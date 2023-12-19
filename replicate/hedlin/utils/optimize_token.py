@@ -49,8 +49,8 @@ def load_ldm(device, type="CompVis/stable-diffusion-v1-4"):
     MAX_NUM_WORDS = 77
     scheduler.set_timesteps(NUM_DDIM_STEPS)
     
-    ldm = StableDiffusionPipeline.from_pretrained(type, use_auth_token=MY_TOKEN, scheduler=scheduler).to(device)
-    #                                              revision="fp16", torch_dtype=torch.float16).to(device)
+    ldm = StableDiffusionPipeline.from_pretrained(type, use_auth_token=MY_TOKEN, scheduler=scheduler,
+                                                  revision="fp16", torch_dtype=torch.float16).to(device)
 
     for param in ldm.vae.parameters():
         param.requires_grad = False
@@ -197,7 +197,7 @@ def image2latent(model, image, device):
         else:
             # print the max and min values of the image
             image = torch.from_numpy(image).float() * 2 - 1
-            image = image.permute(2, 0, 1).unsqueeze(0).to(device) #.type(torch.float16)
+            image = image.permute(2, 0, 1).unsqueeze(0).to(device).type(torch.float16) # [1, 3, H, W]
             latents = model.vae.encode(image)['latent_dist'].mean
             latents = latents * 0.18215
     return latents
@@ -257,7 +257,7 @@ def run_image_with_tokens_cropped(ldm, image, tokens, device='cuda', from_where 
             pixel_loc = max_val.clone()
         
         cropped_image, cropped_pixel, y_start, height, x_start, width = crop_image(image, pixel_loc, crop_percent = crop_percent)
-                
+
         latents = image2latent(ldm, cropped_image, device)
     
         controller = AttentionStore()
@@ -280,6 +280,14 @@ def run_image_with_tokens_cropped(ldm, image, tokens, device='cuda', from_where 
         if image_mask is not None:
             _attention_maps = _attention_maps * image_mask[None, None].to(device)
         
+        from matplotlib import pyplot as plt
+        if i == num_iterations - 1:
+            plt.title("target attention map")
+            plt.imshow(_attention_maps[0, 0].detach().cpu().numpy())
+            plt.imshow(cropped_image, alpha=0.5)
+            #plt.imshow(latents[0, 0].detach().cpu().numpy(), alpha=0.5)
+            plt.show()
+
         collected_attention_maps.append(_attention_maps.clone())
         
     # visualize sum_samples/num_samples
@@ -466,20 +474,20 @@ def crop_image(image, pixel, crop_percent=80, margin=0.15):
     cropped_image = image[y_start:y_start + crop_height, x_start:x_start + crop_width]
     
     # bilinearly upsample to 512x512
-    cropped_image = torch.nn.functional.interpolate(torch.tensor(cropped_image[None]).permute(0, 3, 1, 2), size=(512, 512), mode='bilinear', align_corners=False)[0]
+    cropped_image = torch.nn.functional.interpolate(torch.tensor(cropped_image[None]).permute(0, 3, 1, 2), size=(512, 512), mode='bilinear', align_corners=False)[0] # [3, H, W]
     
     # calculate new pixel location
     new_pixel = torch.stack([x-x_start, y-y_start])
     new_pixel = new_pixel/crop_width
 
-    return cropped_image.permute(1, 2, 0).numpy(), new_pixel, y_start, crop_height, x_start, crop_width
+    return cropped_image.permute(1, 2, 0).numpy(), new_pixel, y_start, crop_height, x_start, crop_width # [H, W, 3]
 
 
 def optimize_prompt(ldm, image, pixel_loc, context=None, device="cuda", num_steps=100, from_where = ["down_cross", "mid_cross", "up_cross"], upsample_res = 32, layers = [0, 1, 2, 3, 4, 5], lr=1e-3, noise_level = -1, sigma = 32, flip_prob = 0.5, crop_percent=80):
     
     # if image is a torch.tensor, convert to numpy
     if type(image) == torch.Tensor:
-        image = image.permute(1, 2, 0).detach().cpu().numpy()
+        image = image.permute(1, 2, 0).detach().cpu().numpy() # [H, W, 3]
         
     if context is None:
         context = init_random_noise(device)
@@ -499,9 +507,9 @@ def optimize_prompt(ldm, image, pixel_loc, context=None, device="cuda", num_step
         
             if np.random.rand() > flip_prob:
                 
-                cropped_image, cropped_pixel, _, _, _, _ = crop_image(image, pixel_loc*512, crop_percent = crop_percent)
+                cropped_image, cropped_pixel, _, _, _, _ = crop_image(image, pixel_loc*512, crop_percent = crop_percent) # [H, W, 3]
                 
-                latent = image2latent(ldm, cropped_image, device)
+                latent = image2latent(ldm, cropped_image, device) # [1, 4, H, W]
                 
                 _pixel_loc = cropped_pixel.clone()
             else:
@@ -517,7 +525,7 @@ def optimize_prompt(ldm, image, pixel_loc, context=None, device="cuda", num_step
                 _pixel_loc = cropped_pixel.clone()
                 
                 latent = image2latent(ldm, cropped_image, device)
-            
+
         noisy_image = ldm.scheduler.add_noise(latent, torch.rand_like(latent), ldm.scheduler.timesteps[noise_level])
         
         controller = AttentionStore()
@@ -527,22 +535,33 @@ def optimize_prompt(ldm, image, pixel_loc, context=None, device="cuda", num_step
         _ = ptp_utils.diffusion_step(ldm, controller, noisy_image, context, ldm.scheduler.timesteps[noise_level], cfg = False)
         
         attention_maps = upscale_to_img_size(controller, from_where = from_where, upsample_res=upsample_res, layers = layers)
+        from matplotlib import pyplot as plt
+        if iteration == num_steps - 1:
+            plt.title("source attention map")
+            plt.imshow(attention_maps[0, 0].detach().cpu().numpy())
+            plt.imshow(cropped_image, alpha=0.5)
+            #plt.imshow(latent[0, 0].detach().cpu().numpy(), alpha=0.5)
+            plt.show()
         num_maps = attention_maps.shape[0]
         
         # divide by the mean along the dim=1
         attention_maps = torch.mean(attention_maps, dim=1)
 
         gt_maps = gaussian_circle(_pixel_loc, size=upsample_res, sigma=sigma, device = device)
+        if iteration == num_steps - 1:
+            plt.imshow(gt_maps.detach().cpu().numpy())
+            plt.imshow(cropped_image, alpha=0.5)
+            plt.show()
         
         gt_maps = gt_maps.reshape(1, -1).repeat(num_maps, 1)
         attention_maps = attention_maps.reshape(num_maps, -1)
         
-        loss = torch.nn.MSELoss()(attention_maps, gt_maps) #.type(torch.float16))
+        loss = torch.nn.MSELoss()(attention_maps, gt_maps.type(torch.float16))
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
         
-    print(f"optimization took {time.time() - start} seconds")
+    #print(f"optimization took {time.time() - start} seconds")
         
     return context
 

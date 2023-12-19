@@ -38,37 +38,30 @@ class HedlinModel(BaseModel):
         source_images, target_images, source_points = source_images[0].unsqueeze(0), target_images[0].unsqueeze(0), source_points[0].unsqueeze(0)
         source_points = source_points[:, :, [1, 0]] # flip x and y axis again
         source_points = source_points.permute(0, 2, 1) # (1, 2, N)
-        # Back to PIL image
-        source_image = (source_images[0] + 1) / 2
-        source_image = source_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
-        source_images = [source_image]
-        target_image = (target_images[0] + 1) / 2
-        target_image = target_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
-        target_images = [target_image]
+
+        # From [-1, 1] to range [0, 1]
+        source_images = (source_images + 1) / 2
+        target_images = (target_images + 1) / 2
 
         # Initialize
         est_keypoints = -1 * torch.ones_like(source_points)
 
-        all_contexts = []
         for j in range(source_points.shape[2]):
-            # Find the text embeddings for the source point
-            contexts = []
+            all_maps = []
             for _ in range(self.num_opt_iterations):
+                # Optimize the text embeddings for the source point
                 context = optimize_prompt(self.model, source_images[0], source_points[0, :, j] / self.upsample_res,
                                           num_steps=self.num_steps, device=self.device, layers=self.layers, lr = self.lr,
                                           upsample_res=self.upsample_res, noise_level=self.noise_level, sigma=self.sigma,
                                           flip_prob=self.flip_prob, crop_percent=self.crop_percent)
-                contexts.append(context)
-            all_contexts.append(torch.stack(contexts))
-
-            # Find and combine the attention maps over the multiple found text embeddings and crops
-            all_maps = []
-            for context in contexts:
+                
+                # Find the attention maps over the optimized text embeddings
                 attn_maps, _ = run_image_with_tokens_cropped(self.model, target_images[0], context, index=0, upsample_res=self.upsample_res,
                                                              noise_level=self.noise_level, layers=self.layers, device=self.device,
                                                              crop_percent=self.crop_percent, num_iterations=self.num_iterations,
                                                              image_mask = None)
                 all_maps.append(attn_maps.mean(dim=1, keepdim=True))
+
             all_maps = torch.stack(all_maps, dim=0)
             all_maps = torch.mean(all_maps, dim=0)
             all_maps = torch.nn.Softmax(dim=-1)(all_maps.reshape(len(self.layers), self.upsample_res * self.upsample_res))
