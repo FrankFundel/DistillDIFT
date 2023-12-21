@@ -23,20 +23,18 @@ class HedlinModel(BaseModel):
         self.noise_level = 8
         self.sigma = 27.97853316316864
         self.flip_prob = 0.0
-        self.crop_percent = 100 #93.16549294381423
+        self.crop_percent = 93.16549294381423
         self.num_iterations = 20
 
         self.model = load_ldm(self.device, 'CompVis/stable-diffusion-v1-4', float16=self.float16)
         self.model.enable_xformers_memory_efficient_attention()
     
-    def __call__(self, source_images, target_images, source_points):
-        """
-        source_images: (1, 3, H, W)
-        target_images: (1, 3, H, W)
-        source_points: (1, N, 2)
-        """
+    def __call__(self, sample):
         # Prepare inputs
-        source_images, target_images, source_points = source_images[0].unsqueeze(0), target_images[0].unsqueeze(0), source_points[0].unsqueeze(0)
+        source_images = sample['source_image']
+        target_images = sample['target_image']
+        source_points = sample['source_points']
+        assert len(source_images) == 1 and len(target_images) == 1 and len(source_points) == 1
         source_points = source_points[:, :, [1, 0]] # flip x and y axis again
         source_points = source_points.permute(0, 2, 1) # (1, 2, N)
 

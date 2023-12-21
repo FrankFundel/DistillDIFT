@@ -20,4 +20,4 @@ save_timestep:
 - 0
 num_timesteps: 50
 model_id: runwayml/stable-diffusion-v1-5
-load_resolution: 224
+load_resolution: 512

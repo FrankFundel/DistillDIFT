@@ -1,3 +1,4 @@
+import os
 import torch
 import tqdm
 import argparse
@@ -13,7 +14,7 @@ from models.hedlin import HedlinModel
 from models.tang import TangModel
 from models.zhang import ZhangModel
 
-def evaluate(model, dataloader, image_size, pck_threshold):
+def evaluate(model, dataloader, image_size, pck_threshold, use_cache=False):
     model.eval()
 
     pbar = tqdm.tqdm(total=len(dataloader))
@@ -23,18 +24,20 @@ def evaluate(model, dataloader, image_size, pck_threshold):
     keypoints = 0
     
     for batch in dataloader:
-        # Get data
-        source_images, target_images = batch['source_image'], batch['target_image']
-        source_points, target_points = batch['source_points'], batch['target_points']
-        target_bbox = batch['target_bbox']
-
         # Load images on device
-        source_images, target_images = source_images.to(device), target_images.to(device)
+        batch['source_image'] = batch['source_image'].to(device)
+        batch['target_image'] = batch['target_image'].to(device)
 
         # Run through model
-        predicted_points = model(source_images, target_images, source_points)
+        if use_cache:
+            predicted_points = model.compute_correspondence(batch)
+        else:
+            predicted_points = model(batch)
 
-        # Calculate PCK values
+        # Calculate PCK value
+        source_points = batch['source_points']
+        target_points = batch['target_points']
+        target_bbox = batch['target_bbox']
         for i in range(len(source_points)):
             pck_img += compute_pck(predicted_points[i], target_points[i], image_size, pck_threshold)
             pck_bbox += compute_pck(predicted_points[i], target_points[i], image_size, pck_threshold, target_bbox[i])
@@ -47,6 +50,57 @@ def evaluate(model, dataloader, image_size, pck_threshold):
     pbar.close()
     return pck_img / keypoints, pck_bbox / keypoints
 
+import h5py
+from PIL import Image
+
+class Preprocessor:
+    def __init__(self, image_size, preprocess_image=True, preprocess_points=True, preprocess_bbox=True):
+        self.image_size = image_size
+        self.preprocess_image = preprocess_image
+        self.preprocess_points = preprocess_points
+        self.preprocess_bbox = preprocess_bbox
+
+    def __call__(self, sample):
+        #source_size = sample['source_image'].size
+        #target_size = sample['target_image'].size
+        source_size = sample['source_size']
+        target_size = sample['target_size']
+        if self.preprocess_image:
+            sample['source_image'] = preprocess_image(sample['source_image'], self.image_size)
+            sample['target_image'] = preprocess_image(sample['target_image'], self.image_size)
+        if self.preprocess_points:
+            sample['source_points'] = preprocess_points(sample['source_points'], source_size, self.image_size)
+            sample['target_points'] = preprocess_points(sample['target_points'], target_size, self.image_size)
+        if self.preprocess_bbox:
+            sample['source_bbox'] = preprocess_bbox(sample['source_bbox'], source_size, self.image_size)
+            sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], target_size, self.image_size)
+        return sample
+
+def cache(model, dataset, cache_path):
+    if not os.path.exists(cache_path):
+        print(f"Caching features to {cache_path}")
+        keys = {}
+        for sample in dataset.data:
+            source_key = os.path.basename(sample['source_image_path'])
+            target_key = os.path.basename(sample['target_image_path'])
+            if source_key not in keys:
+                image = Image.open(sample['source_image_path'])
+                image = preprocess_image(image, model.image_size)
+                keys[source_key] = (image, sample['category'])
+            if target_key not in keys:
+                image = Image.open(sample['target_image_path'])
+                image = preprocess_image(image, model.image_size)
+                keys[target_key] = (image, sample['category'])
+        
+        with h5py.File(cache_path, 'w') as f:
+            for key in tqdm.tqdm(keys):
+                image, category = keys[key]
+                features = model.get_features(image.unsqueeze(0), [category]).squeeze(0).cpu()
+                f.create_dataset(key, data=features)
+                
+    # Set cache in dataset
+    dataset.load_cache(cache_path)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('model', type=str, default='luo', choices=['luo', 'hedlin', 'tang', 'zhang'])
@@ -57,6 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_samples', type=int, default=None)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--pck_threshold', type=float, default=0.1)
+    parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction)
 
     # Parse arguments
     args = parser.parse_args()
@@ -68,6 +123,7 @@ if __name__ == '__main__':
     num_samples = args.num_samples
     num_workers = args.num_workers
     pck_threshold = args.pck_threshold
+    use_cache = args.use_cache
 
     # Load model
     if model_type == 'luo':
@@ -94,18 +150,6 @@ if __name__ == '__main__':
 
     # Load dataset config
     dataset_config = read_config(dataset_config)
-
-    # Define preprocessor
-    def preprocess(sample):
-        source_size = sample['source_image'].size
-        target_size = sample['target_image'].size
-        sample['source_image'] = preprocess_image(sample['source_image'], image_size)
-        sample['target_image'] = preprocess_image(sample['target_image'], image_size)
-        sample['source_points'] = preprocess_points(sample['source_points'], source_size, image_size)
-        sample['target_points'] = preprocess_points(sample['target_points'], target_size, image_size)
-        sample['source_bbox'] = preprocess_bbox(sample['source_bbox'], source_size, image_size)
-        sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], target_size, image_size)
-        return sample
     
     # Print seperator
     print(f"\n{'='*30} Evaluate {model_type} {'='*40}\n")
@@ -113,10 +157,18 @@ if __name__ == '__main__':
     # Evaluate
     for config in dataset_config:
         print(f"Dataset: {config['name']}")
+        preprocess = Preprocessor(image_size, preprocess_image = not use_cache)
         dataset = load_dataset(config, preprocess)
 
         if num_samples is not None:
             dataset = data.Subset(dataset, np.arange(min(num_samples, len(dataset))))
+
+        # Cache dataset
+        if use_cache:
+            if not os.path.exists('cache'):
+                os.mkdir('cache')
+            cache_path = f"cache/{model_type}_{config['name']}.h5"
+            cache(model, dataset, cache_path)
 
         def collate_fn(batch):
             return {
@@ -125,7 +177,8 @@ if __name__ == '__main__':
                 'source_points': [sample['source_points'] for sample in batch],
                 'target_points': [sample['target_points'] for sample in batch],
                 'source_bbox': [sample['source_bbox'] for sample in batch],
-                'target_bbox': [sample['target_bbox'] for sample in batch]
+                'target_bbox': [sample['target_bbox'] for sample in batch],
+                'category': [sample['category'] for sample in batch]
             }
         
         dataloader = data.DataLoader(dataset,
@@ -137,6 +190,6 @@ if __name__ == '__main__':
 
         # with torch.no_grad():
         with torch.set_grad_enabled(model_type == 'hedlin'):
-            pck_img, pck_bbox = evaluate(model, dataloader, image_size, pck_threshold)
+            pck_img, pck_bbox = evaluate(model, dataloader, image_size, pck_threshold, use_cache)
 
         print(f"PCK_img: {pck_img * 100:.2f}, PCK_bbox: {pck_bbox * 100:.2f}\n")

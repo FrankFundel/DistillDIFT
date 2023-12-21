@@ -7,6 +7,7 @@ import json
 import os
 import csv
 from PIL import Image
+import imagesize
 
 class ConvertedDataset(data.Dataset):
     """
@@ -32,22 +33,15 @@ class ConvertedDataset(data.Dataset):
         pair_key = self.image_pairs[index]
         image_pair = self.hdf5_file[pair_key]
 
-        # Get the source image, target image, correspondence points and bounding boxes
-        source_image = Image.fromarray(image_pair['source_image'][()])
-        target_image = Image.fromarray(image_pair['target_image'][()])
-        source_points = torch.tensor(image_pair['source_points'][()])
-        target_points = torch.tensor(image_pair['target_points'][()])
-        source_bbox = torch.tensor(image_pair['source_bbox'][()])
-        target_bbox = torch.tensor(image_pair['target_bbox'][()])
-
         # Return the image pair, correspondence points and bounding boxes
         sample = {
-            'source_image': source_image,
-            'target_image': target_image,
-            'source_points': source_points,
-            'target_points': target_points,
-            'source_bbox': source_bbox,
-            'target_bbox': target_bbox
+            'source_image': Image.fromarray(image_pair['source_image'][()]),
+            'target_image': Image.fromarray(image_pair['target_image'][()]),
+            'source_points': torch.tensor(image_pair['source_points'][()]),
+            'target_points': torch.tensor(image_pair['target_points'][()]),
+            'source_bbox': torch.tensor(image_pair['source_bbox'][()]),
+            'target_bbox': torch.tensor(image_pair['target_bbox'][()]),
+            'category': image_pair['category'][()].decode('utf-8')
         }
 
         # Preprocess images and points
@@ -55,17 +49,26 @@ class ConvertedDataset(data.Dataset):
             sample = self.preprocess(sample)
         
         return sample
+    
 
 class CorrespondenceDataset(data.Dataset):
     """
     General dataset class for datasets with correspondence points.
     """
 
-    def __init__(self, dataset_directory, preprocess=None, split='test'):
+    def __init__(self, dataset_directory, preprocess=None, cache_path=None, split='test'):
         self.dataset_directory = dataset_directory
         self.split = split
         self.preprocess = preprocess
         self.data = self.load_data()
+
+        self.use_cache = False
+        if cache_path is not None:
+            self.load_cache(cache_path)
+
+    def load_cache(self, cache_path):
+        self.cache = h5py.File(cache_path, 'r')
+        self.use_cache = True
 
     def load_data(self):
         raise NotImplementedError
@@ -74,23 +77,63 @@ class CorrespondenceDataset(data.Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox = self.data[idx]
+        sample = self.data[idx]
 
-        source_image = Image.open(source_image_path)
-        target_image = Image.open(target_image_path)
+        sample['source_size'] = imagesize.get(sample['source_image_path'])
+        sample['target_size'] = imagesize.get(sample['target_image_path'])
+        if self.use_cache:
+            source_key = os.path.basename(sample['source_image_path'])
+            target_key = os.path.basename(sample['target_image_path'])
+            sample['source_image'] = torch.tensor(self.cache[source_key][()])
+            sample['target_image'] = torch.tensor(self.cache[target_key][()])
+        else:
+            sample['source_image'] = Image.open(sample['source_image_path'])
+            sample['target_image'] = Image.open(sample['target_image_path'])
         
-        sample = {
-            'source_image': source_image,
-            'target_image': target_image,
-            'source_points': source_points,
-            'target_points': target_points,
-            'source_bbox': source_bbox,
-            'target_bbox': target_bbox
-        }
         if self.preprocess is not None:
             sample = self.preprocess(sample)
 
         return sample
+
+
+class SPairDataset(CorrespondenceDataset):
+    """
+    Dataset class for the SPair-71k dataset.
+    """
+
+    def load_data(self):
+        images_dir = os.path.join(self.dataset_directory, 'JPEGImages')
+        annotations_dir = os.path.join(self.dataset_directory, 'PairAnnotation', self.split)
+        annotations_files = [f for f in os.listdir(annotations_dir) if f.endswith('.json')]
+
+        data = []
+        for annotation_file in annotations_files:
+            with open(os.path.join(annotations_dir, annotation_file), 'r') as file:
+                annotation = json.load(file)
+
+            category = annotation['category']
+            source_image_path = os.path.join(images_dir, category, annotation['src_imname'])
+            target_image_path = os.path.join(images_dir, category, annotation['trg_imname'])
+            source_points = torch.tensor(annotation['src_kps'], dtype=torch.float16)
+            target_points = torch.tensor(annotation['trg_kps'], dtype=torch.float16)
+            source_bbox = torch.tensor(annotation['src_bndbox'], dtype=torch.float16)
+            target_bbox = torch.tensor(annotation['trg_bndbox'], dtype=torch.float16)
+
+            # Convert from (x, y, x+w, y+h) to (x, y, w, h)
+            source_bbox[2:] -= source_bbox[:2]
+            target_bbox[2:] -= target_bbox[:2]
+
+            data.append({
+                'source_image_path': source_image_path,
+                'target_image_path': target_image_path,
+                'source_points': source_points,
+                'target_points': target_points,
+                'source_bbox': source_bbox,
+                'target_bbox': target_bbox,
+                'category': category
+            })
+        return data
+
 
 class PFWillowDataset(CorrespondenceDataset):
     """
@@ -121,38 +164,18 @@ class PFWillowDataset(CorrespondenceDataset):
                 source_bbox[2:] -= source_bbox[:2]
                 target_bbox[2:] -= target_bbox[:2]
 
-                data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
-        return data
+                # Get category from image path
+                category = source_image_path.split('(')[0]
 
-
-class SPairDataset(CorrespondenceDataset):
-    """
-    Dataset class for the SPair-71k dataset.
-    """
-
-    def load_data(self):
-        images_dir = os.path.join(self.dataset_directory, 'JPEGImages')
-        annotations_dir = os.path.join(self.dataset_directory, 'PairAnnotation', self.split)
-        annotations_files = [f for f in os.listdir(annotations_dir) if f.endswith('.json')]
-
-        data = []
-        for annotation_file in annotations_files:
-            with open(os.path.join(annotations_dir, annotation_file), 'r') as file:
-                annotation = json.load(file)
-
-            category = annotation['category']
-            source_image_path = os.path.join(images_dir, category, annotation['src_imname'])
-            target_image_path = os.path.join(images_dir, category, annotation['trg_imname'])
-            source_points = torch.tensor(annotation['src_kps'], dtype=torch.float16)
-            target_points = torch.tensor(annotation['trg_kps'], dtype=torch.float16)
-            source_bbox = torch.tensor(annotation['src_bndbox'], dtype=torch.float16)
-            target_bbox = torch.tensor(annotation['trg_bndbox'], dtype=torch.float16)
-
-            # Convert from (x, y, x+w, y+h) to (x, y, w, h)
-            source_bbox[2:] -= source_bbox[:2]
-            target_bbox[2:] -= target_bbox[:2]
-
-            data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
+                data.append({
+                    'source_image_path': source_image_path,
+                    'target_image_path': target_image_path,
+                    'source_points': source_points,
+                    'target_points': target_points,
+                    'source_bbox': source_bbox,
+                    'target_bbox': target_bbox,
+                    'category': category
+                })
         return data
 
 
@@ -192,6 +215,10 @@ class CUBDataset(CorrespondenceDataset):
             if (self.split == 'train' and is_training_image) or (self.split == 'test' and not is_training_image):
                 filtered_images.append((img_id, img_name))
         
+        # Get class names
+        with open(os.path.join(self.dataset_directory, "classes.txt"), "r") as f:
+            classes = [line.strip().split('.')[1].replace('_', '') for line in f.readlines()]
+
         # Generate all pairs for each class
         data = []
         for class_id in range(1, 201):
@@ -210,6 +237,18 @@ class CUBDataset(CorrespondenceDataset):
 
                 source_bbox = torch.tensor(bounding_boxes[source[0]], dtype=torch.float16)
                 target_bbox = torch.tensor(bounding_boxes[target[0]], dtype=torch.float16)
-                data.append((source_image_path, target_image_path, source_points, target_points, source_bbox, target_bbox))
+                
+                # Get category from image class id
+                category = classes[class_id - 1]
+
+                data.append({
+                    'source_image_path': source_image_path,
+                    'target_image_path': target_image_path,
+                    'source_points': source_points,
+                    'target_points': target_points,
+                    'source_bbox': source_bbox,
+                    'target_bbox': target_bbox,
+                    'category': category
+                })
         
         return data

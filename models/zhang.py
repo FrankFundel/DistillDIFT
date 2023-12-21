@@ -40,11 +40,18 @@ class ZhangModel(BaseModel):
         reduced = reduced.T.view(n, b, h, w).permute(1, 0, 2, 3)
         return reduced
 
-    def __call__(self, source_images, target_images, source_points):
+    def __call__(self, sample):
+        # Prepare data
+        source_images = sample['source_image']
+        target_images = sample['target_image']
+        source_points = sample['source_points']
+        category = sample['category']
+        assert len(source_images) == 1 and len(target_images) == 1 and len(source_points) == 1
         images = torch.cat([source_images, target_images]) #.type(torch.float16)
 
         # SD features
-        features = self.sd_extractor(images, prompt='A picture', layers=self.layers, steps=self.steps)
+        prompt = f'a photo of a {category[0]}'
+        features = self.sd_extractor(images, prompt=prompt, layers=self.layers, steps=self.steps)
         
         # Aggregate diffusion features
         # Simple concatenation results in an unnecessarily high-dimensional feature (2560+1920+960 = 5440).
@@ -74,10 +81,5 @@ class ZhangModel(BaseModel):
         source_features = features[:self.batch_size]
         target_features = features[self.batch_size:]
         
-        predicted_points = []
-        for i in range(self.batch_size):
-            predicted_points.append(compute_correspondence(source_features[i].unsqueeze(0),
-                                                           target_features[i].unsqueeze(0),
-                                                           source_points[i].unsqueeze(0),
-                                                           self.image_size).squeeze(0).cpu())
-        return predicted_points
+        predicted_points = compute_correspondence(source_features, target_features, source_points, self.image_size)
+        return predicted_points.cpu()

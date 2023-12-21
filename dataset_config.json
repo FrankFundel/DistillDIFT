@@ -1,8 +1,7 @@
 [
     {
         "name": "SPair-71k",
-        "path": "/export/group/datasets/SPair-71k",
-        "from_hdf5": true
+        "path": "/export/group/datasets/SPair-71k"
     },
     {
         "name": "PF-WILLOW",

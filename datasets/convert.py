@@ -38,9 +38,9 @@ def convert_dataset(dataset_config):
                 image_pair.create_dataset('target_image', data=sample['target_image'])
                 image_pair.create_dataset('source_points', data=sample['source_points'])
                 image_pair.create_dataset('target_points', data=sample['target_points'])
-                if 'source_bbox' in sample:
-                    image_pair.create_dataset('source_bbox', data=sample['source_bbox'])
-                    image_pair.create_dataset('target_bbox', data=sample['target_bbox'])
+                image_pair.create_dataset('source_bbox', data=sample['source_bbox'])
+                image_pair.create_dataset('target_bbox', data=sample['target_bbox'])
+                image_pair.create_dataset('category', data=sample['category'])
         print(f"Dataset {config['name']} converted.")
 
 if __name__ == '__main__':

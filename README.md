@@ -2,9 +2,13 @@
 Distilling the capability of large diffusion models for semantic correspondence.
 
 # ToDo
-- Include category in datasets
-- Rerun tang and zhang model with category
+- Implement layer- and timestep- wise PCK
+    - DiffusionModel returns nested list of timesteps, layers and predicted points
+- Rerun Zhang
 - DistributedDataParallel
+
+- Maybe remove converter and ConvertedDataset if no performance gain
+- Move feature loading to CorrespondenceDataset instead of preprocessor (not sure anymore, it is only 2 minutes faster)
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
@@ -26,7 +30,7 @@ Distilling the capability of large diffusion models for semantic correspondence.
 3. (Optionally) Convert datasets to HDF5: `python datasets/convert.py --dataset_config`
 
 4. Run the evaluation script: `python evaluate.py [options]`
-    - Make sure to do set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0,1`
+    - Make sure to do set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`
     - Some models need a different diffusers version:
         - hedlin: `diffusers==0.8.0`
         - tang: `diffusers==0.15.0`

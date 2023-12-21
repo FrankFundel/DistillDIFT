@@ -1,14 +1,21 @@
 import matplotlib.pyplot as plt
 
 def display_image_pair(image_pair, show_bbox=False):
-    # Get the images, keypoints and bounding boxes (if applicable) from the image pair
+    """
+    Display an image pair with keypoints and bounding boxes (optional).
+
+    Args:
+        image_pair (dict): dictionary containing the source and target images, keypoints and bounding boxes
+        show_bbox (bool, optional): whether to show the bounding boxes
+    """
+
+    # Get the images, keypoints and bounding boxes from the image pair
     source_image = image_pair['source_image']
     target_image = image_pair['target_image']
     source_points = image_pair['source_points']
     target_points = image_pair['target_points']
-    if show_bbox and 'source_bbox' in image_pair and 'target_bbox' in image_pair:
-        source_bbox = image_pair['source_bbox']
-        target_bbox = image_pair['target_bbox']
+    source_bbox = image_pair['source_bbox']
+    target_bbox = image_pair['target_bbox']
 
     fig, ax = plt.subplots()
 
@@ -28,8 +35,8 @@ def display_image_pair(image_pair, show_bbox=False):
                 [source_image.size[1] - sp[1], target_image.size[1] - tp[1]], # y-coordinates (inverted)
                 color=colors[i % len(colors)]) # colour
 
-    # Draw the bounding boxes if applicable
-    if show_bbox and 'source_bbox' in image_pair and 'target_bbox' in image_pair:
+    # Draw the bounding boxes if required
+    if show_bbox:
         # Extract the coordinates and dimensions of the bounding boxes
         source_x, source_y, source_w, source_h = source_bbox
         target_x, target_y, target_w, target_h = target_bbox

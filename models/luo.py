@@ -28,8 +28,12 @@ class LuoModel(BaseModel):
         self.diffusion_extractor.pipe.enable_attention_slicing()
         self.diffusion_extractor.pipe.enable_xformers_memory_efficient_attention()
         
-    def __call__(self, source_images, target_images, source_points):
-        images = torch.cat([source_images, target_images]).type(torch.float16) # TODO: do this in dataloader
+    def __call__(self, sample):
+        source_images = sample['source_image']
+        target_images = sample['target_image']
+        source_points = sample['source_points']
+        
+        images = torch.cat([source_images, target_images]).type(torch.float16)
         
         features, _ = self.diffusion_extractor.forward(images)
         b, s, l, w, h = features.shape
