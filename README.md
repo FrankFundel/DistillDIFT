@@ -41,6 +41,7 @@ We provide a well-written and documented code base for semantic correspondence, 
         - tang: `diffusers==0.15.0`
         - luo: `diffusers==0.14.0`
     - For all other models we use `diffusers==0.24.0`
+    - When using cache, remember to delete the cache file if you made changes on the model, else the features will stay the same
 
 # Training
 
@@ -50,7 +51,3 @@ _To be continued..._
 
 - Dataset exploration: `datasets/explore.ipynb`
 - Evaluation demo: `eval_demo.ipynb`
-
-# Additional
-
-- When using cache, remember to delete the cache file if you've changed the model, else the features ill stay the same
