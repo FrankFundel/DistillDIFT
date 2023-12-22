@@ -76,28 +76,42 @@ class Preprocessor:
             sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], target_size, self.image_size)
         return sample
 
-def cache(model, dataset, cache_path):
-    if not os.path.exists(cache_path):
-        print(f"Caching features to {cache_path}")
-        keys = {}
+def cache(model, dataset, cache_path, num_workers):
+    print(f"Caching features to {cache_path}")
+    with h5py.File(cache_path, 'a') as f:
+        keys = list(f.keys()) # Get keys already in cache
+        samples = []
         for sample in dataset.data:
             source_key = os.path.basename(sample['source_image_path'])
             target_key = os.path.basename(sample['target_image_path'])
             if source_key not in keys:
                 image = Image.open(sample['source_image_path'])
                 image = preprocess_image(image, model.image_size)
-                keys[source_key] = (image, sample['category'])
+                samples.append((source_key, image, sample['category']))
+                keys.append(source_key)
             if target_key not in keys:
                 image = Image.open(sample['target_image_path'])
                 image = preprocess_image(image, model.image_size)
-                keys[target_key] = (image, sample['category'])
+                samples.append((target_key, image, sample['category']))
+                keys.append(target_key)
         
-        with h5py.File(cache_path, 'w') as f:
-            for key in tqdm.tqdm(keys):
-                image, category = keys[key]
-                features = model.get_features(image.unsqueeze(0), [category]).squeeze(0).cpu()
-                f.create_dataset(key, data=features)
-                
+        batch_size = model.batch_size
+        dataloader = data.DataLoader(samples,
+                                     batch_size=batch_size,
+                                     shuffle=False,
+                                     num_workers=num_workers)
+
+        with torch.no_grad():
+            for keys, images, categories in tqdm.tqdm(dataloader):
+                # extend last batch if necessary
+                if len(keys) < batch_size:
+                    images = torch.cat([images, images[-1].repeat(batch_size-len(keys), 1, 1, 1)])
+                    categories = list(categories) + [categories[-1]] * (batch_size-len(keys))
+                images = images.to(device)
+                features = model.get_features(images, categories).cpu()
+                for i, key in enumerate(keys):
+                    f.create_dataset(key, data=features[i])
+            
     # Set cache in dataset
     dataset.load_cache(cache_path)
 
@@ -111,7 +125,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_samples', type=int, default=None)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--pck_threshold', type=float, default=0.1)
-    parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('--drop_last_batch', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('--grad_enabled', action=argparse.BooleanOptionalAction, default=False)
 
     # Parse arguments
     args = parser.parse_args()
@@ -124,14 +140,18 @@ if __name__ == '__main__':
     num_workers = args.num_workers
     pck_threshold = args.pck_threshold
     use_cache = args.use_cache
+    drop_last_batch = args.drop_last_batch
+    grad_enabled = args.grad_enabled
 
     # Load model
     if model_type == 'luo':
         image_size = (224, 224)
+        drop_last_batch = True
         model = LuoModel(batch_size, image_size, device_type)
     elif model_type == 'hedlin':
         image_size = (512, 512)
         batch_size = 1
+        grad_enabled = True
         model = HedlinModel(image_size, device_type)
     elif model_type == 'tang':
         image_size = (768, 768)
@@ -160,15 +180,17 @@ if __name__ == '__main__':
         preprocess = Preprocessor(image_size, preprocess_image = not use_cache)
         dataset = load_dataset(config, preprocess)
 
+        if 'num_samples' in config: # TODO: make this more elegant
+            num_samples = config['num_samples']
         if num_samples is not None:
-            dataset = data.Subset(dataset, np.arange(min(num_samples, len(dataset))))
+            dataset.data = dataset.data[:min(num_samples, len(dataset))]
 
         # Cache dataset
         if use_cache:
             if not os.path.exists('cache'):
                 os.mkdir('cache')
             cache_path = f"cache/{model_type}_{config['name']}.h5"
-            cache(model, dataset, cache_path)
+            cache(model, dataset, cache_path, num_workers)
 
         def collate_fn(batch):
             return {
@@ -185,11 +207,11 @@ if __name__ == '__main__':
                                      batch_size=batch_size,
                                      shuffle=False,
                                      num_workers=num_workers,
-                                     drop_last=(model_type == 'luo'),
+                                     drop_last=drop_last_batch,
                                      collate_fn=collate_fn)
 
         # with torch.no_grad():
-        with torch.set_grad_enabled(model_type == 'hedlin'):
+        with torch.set_grad_enabled(grad_enabled):
             pck_img, pck_bbox = evaluate(model, dataloader, image_size, pck_threshold, use_cache)
 
         print(f"PCK_img: {pck_img * 100:.2f}, PCK_bbox: {pck_bbox * 100:.2f}\n")

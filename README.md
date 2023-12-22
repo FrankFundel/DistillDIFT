@@ -8,7 +8,11 @@ Distilling the capability of large diffusion models for semantic correspondence.
 - DistributedDataParallel
 
 - Maybe remove converter and ConvertedDataset if no performance gain
-- Move feature loading to CorrespondenceDataset instead of preprocessor (not sure anymore, it is only 2 minutes faster)
+- Make code simpler and more beautiful
+- Try not loading onto GPU when cached
+- Try not resizing to image_size but to source_size and target_size when calculating correspondence
+
+- Make wrapper for Dataset instead
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
@@ -44,3 +48,7 @@ _To be continued..._
 
 - Dataset exploration: `datasets/explore.ipynb`
 - Evaluation demo: `eval_demo.ipynb`
+
+# Additional
+
+- When using cache, remember to delete the cache file if you've changed the model, else the features ill stay the same

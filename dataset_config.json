@@ -9,6 +9,7 @@
     },
     {
         "name": "CUB-200-2011",
-        "path": "/export/home/ra63des/DistillDIFT/data/CUB_200_2011"
+        "path": "/export/home/ra63des/DistillDIFT/data/CUB_200_2011",
+        "num_samples": 4000
     }
 ]

@@ -86,7 +86,7 @@ def postprocess_points(points, old_size, new_size):
 
 def preprocess_bbox(bbox, old_size, new_size):
     """
-    Rescale bounding box to match new image size and flip x, y, w and h axis.
+    Rescale bounding box to match new image size and flip x, y and w, h axis.
 
     Args:
         bbox (torch.Tensor): [4] with (x, y, w, h)
@@ -102,7 +102,7 @@ def preprocess_bbox(bbox, old_size, new_size):
 
 def postprocess_bbox(bbox, old_size, new_size):
     """
-    Flip x, y, w and h axis and rescale bounding box to match new image size.
+    Flip x, y and w, h axis and rescale bounding box to match new image size.
 
     Args:
         bbox (torch.Tensor): [4] with (x, y, w, h)
