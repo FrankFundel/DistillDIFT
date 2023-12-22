@@ -366,7 +366,7 @@ class SDExtractor:
         """
         
         # Embed prompt
-        prompt_embeddings = self.pipe._encode_prompt(
+        prompt_embeddings, _ = self.pipe.encode_prompt(
             prompt=prompt,
             device=self.device,
             num_images_per_prompt=1,

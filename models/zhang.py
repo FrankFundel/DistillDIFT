@@ -39,6 +39,44 @@ class ZhangModel(BaseModel):
         reduced = torch.matmul(features, V[:, :n])
         reduced = reduced.T.view(n, b, h, w).permute(1, 0, 2, 3)
         return reduced
+    
+    def get_features(self, image, category):
+        assert len(image) == 1 and len(category) == 1
+
+        prompt = f'a photo of a {category[0]}'
+        features = self.sd_extractor(image, prompt=prompt, layers=self.layers, steps=self.steps)
+        b, n, h, w = features[self.steps[0]][self.layers[-1]].shape
+        diffusion_features = []
+        for t in self.steps:
+            for l in self.layers:
+                upsampled_feature = interpolate(features[t][l], size=w, mode="bilinear")
+                diffusion_features.append(upsampled_feature)
+        diffusion_features = torch.cat(diffusion_features, dim=1)
+        diffusion_features = diffusion_features / diffusion_features.norm(dim=1, keepdim=True) # L2 normalize
+
+        # DINO features
+        image = (image + 1) / 2 # image is bezween -1 and 1, make image between 0 and 1
+        image = Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))(image)
+        image = interpolate(image, size=self.dino_image_size, mode="bilinear")
+        dino_features = self.dino_extractor.get_intermediate_layers( 
+            image, 2, return_class_token=False
+        )[0].permute(0, 2, 1).reshape(b, -1, self.num_patches, self.num_patches)
+        dino_features = interpolate(dino_features, size=w, mode="bilinear")
+        dino_features = dino_features / dino_features.norm(dim=1, keepdim=True) # L2 normalize
+
+        features = torch.cat([diffusion_features, dino_features], dim=1)
+        return features
+    
+    def compute_correspondence(self, sample):
+        source_features = sample['source_image']
+        target_features = sample['target_image']
+        source_points = sample['source_points']
+        
+        assert len(source_features) == 1 and len(target_features) == 1 and len(source_points) == 1
+        source_points = source_points[0].unsqueeze(0)
+
+        predicted_points = compute_correspondence(source_features, target_features, source_points, self.image_size)
+        return predicted_points.cpu()
 
     def __call__(self, sample):
         # Prepare data
@@ -47,6 +85,7 @@ class ZhangModel(BaseModel):
         source_points = sample['source_points']
         category = sample['category']
         assert len(source_images) == 1 and len(target_images) == 1 and len(source_points) == 1
+        source_points = source_points[0].unsqueeze(0)
         images = torch.cat([source_images, target_images]) #.type(torch.float16)
 
         # SD features

@@ -29,7 +29,6 @@ class LuoModel(BaseModel):
         self.diffusion_extractor.pipe.enable_xformers_memory_efficient_attention()
         
     def get_features(self, images, categories):
-        # repeat image 8 times
         features, _ = self.diffusion_extractor.forward(images.type(torch.float16))
         b, s, l, w, h = features.shape
         diffusion_hyperfeatures = self.aggregation_network(features.float().view((b, -1, w, h)))

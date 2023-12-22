@@ -126,6 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--pck_threshold', type=float, default=0.1)
     parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('--cache_dir', type=str, default='cache')
     parser.add_argument('--drop_last_batch', action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument('--grad_enabled', action=argparse.BooleanOptionalAction, default=False)
 
@@ -140,6 +141,7 @@ if __name__ == '__main__':
     num_workers = args.num_workers
     pck_threshold = args.pck_threshold
     use_cache = args.use_cache
+    cache_dir = args.cache_dir
     drop_last_batch = args.drop_last_batch
     grad_enabled = args.grad_enabled
 
@@ -187,9 +189,9 @@ if __name__ == '__main__':
 
         # Cache dataset
         if use_cache:
-            if not os.path.exists('cache'):
-                os.mkdir('cache')
-            cache_path = f"cache/{model_type}_{config['name']}.h5"
+            if not os.path.exists(cache_dir):
+                os.mkdir(cache_dir)
+            cache_path = os.path.join(cache_dir, f"{model_type}_{config['name']}.h5")
             cache(model, dataset, cache_path, num_workers)
 
         def collate_fn(batch):

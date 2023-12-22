@@ -1,10 +1,10 @@
 # DistillDIFT
 Distilling the capability of large diffusion models for semantic correspondence.
+We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
 # ToDo
 - Implement layer- and timestep- wise PCK
     - DiffusionModel returns nested list of timesteps, layers and predicted points
-- Rerun Zhang
 - DistributedDataParallel
 
 - Maybe remove converter and ConvertedDataset if no performance gain
@@ -13,6 +13,7 @@ Distilling the capability of large diffusion models for semantic correspondence.
 - Try not resizing to image_size but to source_size and target_size when calculating correspondence
 
 - Make wrapper for Dataset instead
+- Zhang with batch mode
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
@@ -39,6 +40,7 @@ Distilling the capability of large diffusion models for semantic correspondence.
         - hedlin: `diffusers==0.8.0`
         - tang: `diffusers==0.15.0`
         - luo: `diffusers==0.14.0`
+    - For all other models we use `diffusers==0.24.0`
 
 # Training
 
