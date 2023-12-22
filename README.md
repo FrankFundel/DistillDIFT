@@ -30,7 +30,8 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 2. Setup your `dataset_config.json`
     - Use absolute path to folder
-    - If you want it to be converted and loaded as HDF5 set the flag `from_hdf5` to true
+    - If you want it to be converted and loaded as HDF5, set the flag `from_hdf5` to true
+    - If you want to limit the number of samples for a specific dataset, set `num_samples` to an arbitrary integer
 
 3. (Optionally) Convert datasets to HDF5: `python datasets/convert.py --dataset_config`
 
