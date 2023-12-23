@@ -73,21 +73,6 @@ class ZhangModel(BaseModel):
         assert len(source_features) == 1 and len(target_features) == 1 and len(source_points) == 1
         source_points = source_points[0].unsqueeze(0)
 
-        # w/o PCA it takes 44min to compute correspondence for SPair-71k
-        # with PCA it takes 1:20min
-        layer_dims = {
-            'sd_3': 1280,
-            'sd_7': 1280,
-            'sd_11': 640,
-            'dino': 768
-        }
-        # co-PCA on diffusion dims in source and target features
-        for i, layer in enumerate(list(layer_dims.keys())[:-1]):
-            d = layer_dims[layer]
-            start = 256 * i
-            source_features[:, range(start, start+256)] = self.co_pca(source_features[:, range(start, start+d)], n=self.pca_dim)
-            target_features[:, range(start, start+256)] = self.co_pca(target_features[:, range(start, start+d)], n=self.pca_dim)
-
         predicted_points = compute_correspondence(source_features, target_features, source_points, self.image_size)
         return predicted_points.cpu()
 
