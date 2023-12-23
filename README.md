@@ -48,6 +48,10 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 _To be continued..._
 
+# Feature Extractors
+
+_To be continued..._
+
 # Demos
 
 - Dataset exploration: `datasets/explore.ipynb`

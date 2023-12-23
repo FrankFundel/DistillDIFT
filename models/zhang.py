@@ -1,10 +1,9 @@
 import torch
 from torch.nn.functional import interpolate
-from torchvision.transforms import Normalize
 
 from .base import BaseModel
 from utils.correspondence import compute_correspondence
-from extractors.diffusion import SDExtractor, SDHookExtractor
+from extractors.diffusion import SDExtractor
 
 class ZhangModel(BaseModel):
     """
@@ -56,10 +55,9 @@ class ZhangModel(BaseModel):
 
         # DINO features
         image = (image + 1) / 2 # image is bezween -1 and 1, make image between 0 and 1
-        image = Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))(image)
         image = interpolate(image, size=self.dino_image_size, mode="bilinear")
         dino_features = self.dino_extractor.get_intermediate_layers( 
-            image, 2, return_class_token=False
+            image, 1, return_class_token=False
         )[0].permute(0, 2, 1).reshape(b, -1, self.num_patches, self.num_patches)
         dino_features = interpolate(dino_features, size=w, mode="bilinear")
         dino_features = dino_features / dino_features.norm(dim=1, keepdim=True) # L2 normalize
@@ -74,6 +72,21 @@ class ZhangModel(BaseModel):
         
         assert len(source_features) == 1 and len(target_features) == 1 and len(source_points) == 1
         source_points = source_points[0].unsqueeze(0)
+
+        # w/o PCA it takes 44min to compute correspondence for SPair-71k
+        # with PCA it takes 1:20min
+        layer_dims = {
+            'sd_3': 1280,
+            'sd_7': 1280,
+            'sd_11': 640,
+            'dino': 768
+        }
+        # co-PCA on diffusion dims in source and target features
+        for i, layer in enumerate(list(layer_dims.keys())[:-1]):
+            d = layer_dims[layer]
+            start = 256 * i
+            source_features[:, range(start, start+256)] = self.co_pca(source_features[:, range(start, start+d)], n=self.pca_dim)
+            target_features[:, range(start, start+256)] = self.co_pca(target_features[:, range(start, start+d)], n=self.pca_dim)
 
         predicted_points = compute_correspondence(source_features, target_features, source_points, self.image_size)
         return predicted_points.cpu()
@@ -105,13 +118,12 @@ class ZhangModel(BaseModel):
                 diffusion_features.append(upsampled_feature)
         diffusion_features = torch.cat(diffusion_features, dim=1)
         diffusion_features = diffusion_features / diffusion_features.norm(dim=1, keepdim=True) # L2 normalize
-
+        
         # DINO features
         images = (images + 1) / 2 # image is bezween -1 and 1, make image between 0 and 1
-        images = Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))(images)
         images = interpolate(images, size=self.dino_image_size, mode="bilinear")
         dino_features = self.dino_extractor.get_intermediate_layers( 
-            images, 2, return_class_token=False
+            images, 1, return_class_token=False
         )[0].permute(0, 2, 1).reshape(b, -1, self.num_patches, self.num_patches)
         dino_features = interpolate(dino_features, size=w, mode="bilinear")
         dino_features = dino_features / dino_features.norm(dim=1, keepdim=True) # L2 normalize
