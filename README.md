@@ -14,6 +14,8 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 - Make wrapper for Dataset instead
 - Zhang with batch mode
+- model_config.json with load_model() function
+- discription for argparse
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences

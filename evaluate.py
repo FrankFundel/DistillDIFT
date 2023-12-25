@@ -2,12 +2,11 @@ import os
 import torch
 import tqdm
 import argparse
-import numpy as np
 
 import torch.utils.data as data
 
 from utils.dataset import read_config, load_dataset
-from utils.correspondence import preprocess_image, preprocess_points, preprocess_bbox, compute_pck
+from utils.correspondence import preprocess_image, preprocess_points, preprocess_bbox, compute_pck_img, compute_pck_bbox
 
 from models.luo import LuoModel
 from models.hedlin import HedlinModel
@@ -39,8 +38,8 @@ def evaluate(model, dataloader, image_size, pck_threshold, use_cache=False):
         target_points = batch['target_points']
         target_bbox = batch['target_bbox']
         for i in range(len(source_points)):
-            pck_img += compute_pck(predicted_points[i], target_points[i], image_size, pck_threshold)
-            pck_bbox += compute_pck(predicted_points[i], target_points[i], image_size, pck_threshold, target_bbox[i])
+            pck_img += compute_pck_img(predicted_points[i], target_points[i], image_size, pck_threshold)
+            pck_bbox += compute_pck_bbox(predicted_points[i], target_points[i], target_bbox[i], pck_threshold)
             keypoints += len(source_points[i])
 
         # Update progress bar

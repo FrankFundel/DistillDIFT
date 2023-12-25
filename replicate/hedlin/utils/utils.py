@@ -108,5 +108,3 @@ def visualie_correspondences(initial_image, final_image, source, target, name, c
 
     plt.savefig(f'{save_folder}/{name}.png')
     plt.close()
-
-    

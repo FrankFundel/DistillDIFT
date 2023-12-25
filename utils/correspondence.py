@@ -192,24 +192,38 @@ def compute_correspondence(source_features, target_features, source_points, size
     predicted_points = torch.stack([predicted_idx // h, predicted_idx % h], dim=2) # [B, N, 2]
     return predicted_points
 
-def compute_pck(predicted_points, target_points, size, threshold=0.1, target_bbox=None):
+def compute_pck_img(predicted_points, target_points, image_size, threshold=0.1):
     """
-    Compute PCK (Percent of Correct Keypoints) value.
+    Compute PCK (Percent of Correct Keypoints) value with respect to image size.
 
     Args:
         predicted_points (torch.Tensor): [N, 2] where each point is (y, x)
         target_points (torch.Tensor): [N, 2] where each point is (y, x)
-        size (tuple): (width, height)
+        image_size (tuple): (width, height)
         threshold (float): Threshold for PCK
-        target_bbox (torch.Tensor): [4] with (x, y, w, h)
 
     Returns:
-        float: PCK value
+        int: Number of correct keypoints
     """
     distances = torch.linalg.norm(predicted_points - target_points, axis=-1)
-    if target_bbox is None:
-        pck = distances <= threshold * max(size)
-    else:
-        y, x, h, w = target_bbox
-        pck = distances <= threshold * max(h, w)
+    pck = distances <= threshold * max(image_size)
+    return pck.sum().item()
+
+
+def compute_pck_bbox(predicted_points, target_points, target_bbox, threshold=0.1):
+    """
+    Compute PCK (Percent of Correct Keypoints) value with respect to bounding box size.
+
+    Args:
+        predicted_points (torch.Tensor): [N, 2] where each point is (y, x)
+        target_points (torch.Tensor): [N, 2] where each point is (y, x)
+        target_bbox (torch.Tensor): [4] with (x, y, w, h)
+        threshold (float): Threshold for PCK
+
+    Returns:
+        int: Number of correct keypoints
+    """
+    y, x, h, w = target_bbox
+    distances = torch.linalg.norm(predicted_points - target_points, axis=-1)
+    pck = distances <= threshold * max(h, w)
     return pck.sum().item()

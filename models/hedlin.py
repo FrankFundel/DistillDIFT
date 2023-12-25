@@ -7,7 +7,7 @@ class HedlinModel(BaseModel):
     """
     Model from Hedlin et al. (https://arxiv.org/abs/2305.15581)
     """
-    def __init__(self, image_size=(512, 512), float16=False, device="cuda"):
+    def __init__(self, image_size=(512, 512), device="cuda", float16=False):
         super(HedlinModel, self).__init__()
 
         self.device = device
@@ -20,7 +20,7 @@ class HedlinModel(BaseModel):
         self.num_opt_iterations = 5
         self.num_steps = 129
         self.lr = 0.0023755632081200314
-        self.noise_level = 8
+        self.noise_level = -8
         self.sigma = 27.97853316316864
         self.flip_prob = 0.0
         self.crop_percent = 93.16549294381423
