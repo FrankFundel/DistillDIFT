@@ -9,47 +9,6 @@ import csv
 from PIL import Image
 import imagesize
 
-class ConvertedDataset(data.Dataset):
-    """
-    Dataset class for converted datasets.
-    """
-
-    def __init__(self, hdf5_filename, preprocess=None):
-        super().__init__()
-
-        # Open the HDF5 file
-        self.hdf5_file = h5py.File(hdf5_filename, 'r')
-
-        # Get the image pairs
-        self.image_pairs = list(self.hdf5_file.keys())
-
-        self.preprocess = preprocess
-
-    def __len__(self):
-        return len(self.image_pairs)
-
-    def __getitem__(self, index):
-        # Get image pair
-        pair_key = self.image_pairs[index]
-        image_pair = self.hdf5_file[pair_key]
-
-        # Return the image pair, correspondence points and bounding boxes
-        sample = {
-            'source_image': Image.fromarray(image_pair['source_image'][()]),
-            'target_image': Image.fromarray(image_pair['target_image'][()]),
-            'source_points': torch.tensor(image_pair['source_points'][()]),
-            'target_points': torch.tensor(image_pair['target_points'][()]),
-            'source_bbox': torch.tensor(image_pair['source_bbox'][()]),
-            'target_bbox': torch.tensor(image_pair['target_bbox'][()]),
-            'category': image_pair['category'][()].decode('utf-8')
-        }
-
-        # Preprocess images and points
-        if self.preprocess is not None:
-            sample = self.preprocess(sample)
-        
-        return sample
-    
 
 class CorrespondenceDataset(data.Dataset):
     """

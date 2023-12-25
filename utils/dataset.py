@@ -1,9 +1,9 @@
 import json
 import os
 
-from datasets.dataset import SPairDataset, PFWillowDataset, CUBDataset, ConvertedDataset
+from datasets.dataset import SPairDataset, PFWillowDataset, CUBDataset
 
-def read_config(config_path):
+def read_dataset_config(config_path):
     """
     Read config from JSON file.
 
@@ -17,29 +17,24 @@ def read_config(config_path):
         config = json.load(f)
     return config
 
-def load_dataset(config, preprocess=None, from_hdf5=None):
+def load_dataset(dataset_name, config, preprocess=None):
     """
     Load dataset from config.
 
     Args:
+        dataset_name (str): Name of dataset
         config (dict): Dataset config
         preprocess (callable): Preprocess function
-        from_hdf5 (bool): Whether to load from HDF5 file
 
     Returns:
         CorrespondenceDataset: Dataset
     """
 
-    if from_hdf5 is None:
-        from_hdf5 = 'from_hdf5' in config and config['from_hdf5']
-    if from_hdf5:
-        return ConvertedDataset(os.path.join(config['path'], 'converted.h5'), preprocess)
-
-    if config['name'] == 'PF-WILLOW':
+    if dataset_name == 'PF-WILLOW':
         return PFWillowDataset(config['path'], preprocess)
-    if config['name'] == 'SPair-71k':
+    if dataset_name == 'SPair-71k':
         return SPairDataset(config['path'], preprocess)
-    if config['name'] == 'CUB-200-2011':
+    if dataset_name == 'CUB-200-2011':
         return CUBDataset(config['path'], preprocess)
     
     raise ValueError('Dataset not recognized.')

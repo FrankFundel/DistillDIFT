@@ -7,15 +7,12 @@ We provide a well-written and documented code base for semantic correspondence, 
     - DiffusionModel returns nested list of timesteps, layers and predicted points
 - DistributedDataParallel
 
-- Maybe remove converter and ConvertedDataset if no performance gain
 - Make code simpler and more beautiful
 - Try not loading onto GPU when cached
 - Try not resizing to image_size but to source_size and target_size when calculating correspondence
 
 - Make wrapper for Dataset instead
 - Zhang with batch mode
-- model_config.json with load_model() function
-- discription for argparse
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
@@ -32,10 +29,9 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 2. Setup your `dataset_config.json`
     - Use absolute path to folder
-    - If you want it to be converted and loaded as HDF5, set the flag `from_hdf5` to true
     - If you want to limit the number of samples for a specific dataset, set `num_samples` to an arbitrary integer
 
-3. (Optionally) Convert datasets to HDF5: `python datasets/convert.py --dataset_config`
+3. Setup your `model_config.json`
 
 4. Run the evaluation script: `python evaluate.py [options]`
     - Make sure to do set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`

@@ -575,7 +575,7 @@ def optimize_prompt(
         optimizer.step()
         optimizer.zero_grad()
 
-    #print(f"optimization took {time.time() - start} seconds")
+    print(f"optimization took {time.time() - start} seconds")
 
     return context
 

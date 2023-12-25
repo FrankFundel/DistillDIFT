@@ -5,13 +5,9 @@ import argparse
 
 import torch.utils.data as data
 
-from utils.dataset import read_config, load_dataset
+from utils.dataset import read_dataset_config, load_dataset
+from utils.model import read_model_config, load_model
 from utils.correspondence import preprocess_image, preprocess_points, preprocess_bbox, compute_pck_img, compute_pck_bbox
-
-from models.luo import LuoModel
-from models.hedlin import HedlinModel
-from models.tang import TangModel
-from models.zhang import ZhangModel
 
 def evaluate(model, dataloader, image_size, pck_threshold, use_cache=False):
     model.eval()
@@ -116,52 +112,38 @@ def cache(model, dataset, cache_path, num_workers):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('model', type=str, default='luo', choices=['luo', 'hedlin', 'tang', 'zhang'])
-    parser.add_argument('--dataset_config', type=str, default='dataset_config.json')
-    parser.add_argument('--image_size', type=tuple, default=(512, 512))
-    parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--batch_size', type=int, default=8)
-    parser.add_argument('--num_samples', type=int, default=None)
-    parser.add_argument('--num_workers', type=int, default=0)
-    parser.add_argument('--pck_threshold', type=float, default=0.1)
-    parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument('--cache_dir', type=str, default='cache')
-    parser.add_argument('--drop_last_batch', action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument('--grad_enabled', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('model_name', type=str, default='luo', help='Name of model to evaluate')
+    parser.add_argument('--dataset_config', type=str, default='dataset_config.json', help='Path to dataset config file')
+    parser.add_argument('--model_config', type=str, default='model_config.json', help='Path to model config file')
+    parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'], help='Device to run model on')
+    parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
+    parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
+    parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False, help='Precalculate features and use them for faster evaluation')
+    parser.add_argument('--cache_dir', type=str, default='cache', help='Directory to store cached features')
+    parser.add_argument('--num_samples', type=int, default=None, help='Maximum number of samples to evaluate')
 
     # Parse arguments
     args = parser.parse_args()
-    model_type = args.model
+    model_name = args.model_name
     dataset_config = args.dataset_config
-    image_size = args.image_size
     device_type = args.device
-    batch_size = args.batch_size
     num_samples = args.num_samples
     num_workers = args.num_workers
     pck_threshold = args.pck_threshold
     use_cache = args.use_cache
     cache_dir = args.cache_dir
-    drop_last_batch = args.drop_last_batch
-    grad_enabled = args.grad_enabled
+
+    # Load model config
+    model_config = read_model_config('model_config.json')[model_name]
+
+    # Get model parameters
+    image_size = model_config.get('image_size', (512, 512))
+    batch_size = model_config.get('batch_size', 8)
+    drop_last_batch = model_config.get('drop_last_batch', False)
+    grad_enabled = model_config.get('grad_enabled', False)
 
     # Load model
-    if model_type == 'luo':
-        image_size = (224, 224)
-        drop_last_batch = True
-        model = LuoModel(batch_size, image_size, device_type)
-    elif model_type == 'hedlin':
-        image_size = (512, 512)
-        batch_size = 1
-        grad_enabled = True
-        model = HedlinModel(image_size, device_type)
-    elif model_type == 'tang':
-        image_size = (768, 768)
-        batch_size = 1
-        model = TangModel(image_size, device_type)
-    elif model_type == 'zhang':
-        image_size = (960, 960)
-        batch_size = 1
-        model = ZhangModel(1, image_size, device_type)
+    model = load_model(model_name, model_config, device_type)
 
     device = torch.device(device_type)
     if device.type == 'cuda' and torch.cuda.device_count() > 1:
@@ -170,27 +152,27 @@ if __name__ == '__main__':
     model.to(device)
 
     # Load dataset config
-    dataset_config = read_config(dataset_config)
+    dataset_config = read_dataset_config(dataset_config)
     
     # Print seperator
-    print(f"\n{'='*30} Evaluate {model_type} {'='*40}\n")
+    print(f"\n{'='*30} Evaluate {model_name} {'='*40}\n")
 
     # Evaluate
-    for config in dataset_config:
-        print(f"Dataset: {config['name']}")
+    for dataset_name in dataset_config:
+        print(f"Dataset: {dataset_name}")
+        config = dataset_config[dataset_name]
         preprocess = Preprocessor(image_size, preprocess_image = not use_cache)
-        dataset = load_dataset(config, preprocess)
+        dataset = load_dataset(dataset_name, config, preprocess)
 
-        if 'num_samples' in config: # TODO: make this more elegant
-            num_samples = config['num_samples']
-        if num_samples is not None:
-            dataset.data = dataset.data[:min(num_samples, len(dataset))]
+        # Limit number of samples if specified
+        min_num_samples = min(filter(None, [num_samples, config.get('num_samples', None), len(dataset)]))
+        dataset.data = dataset.data[:min_num_samples]
 
         # Cache dataset
         if use_cache:
             if not os.path.exists(cache_dir):
                 os.mkdir(cache_dir)
-            cache_path = os.path.join(cache_dir, f"{model_type}_{config['name']}.h5")
+            cache_path = os.path.join(cache_dir, f"{model_name}_{config['name']}.h5")
             cache(model, dataset, cache_path, num_workers)
 
         def collate_fn(batch):

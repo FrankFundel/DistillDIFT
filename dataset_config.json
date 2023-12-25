@@ -1,15 +1,12 @@
-[
-    {
-        "name": "SPair-71k",
+{
+    "SPair-71k": {
         "path": "/export/group/datasets/SPair-71k"
     },
-    {
-        "name": "PF-WILLOW",
+    "PF-WILLOW": {
         "path": "/export/home/ra63des/DistillDIFT/data/PF-WILLOW"
     },
-    {
-        "name": "CUB-200-2011",
+    "CUB-200-2011": {
         "path": "/export/home/ra63des/DistillDIFT/data/CUB_200_2011",
         "num_samples": 4000
     }
-]
+}
