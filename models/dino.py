@@ -3,9 +3,8 @@ from torch.nn.functional import interpolate
 
 from .base import BaseModel
 from utils.correspondence import compute_correspondence
-from extractors.diffusion import SDExtractor
 
-class ZhangModel(BaseModel):
+class DINOModel(BaseModel):
     """
     Model from Zhang et al. (https://arxiv.org/abs/2305.14334)
     Using own SD and DINO extractors
@@ -16,11 +15,6 @@ class ZhangModel(BaseModel):
         self.batch_size = batch_size
         self.image_size = image_size
         self.device = device
-
-        self.pca_dim = 256
-        self.layers = [3, 7, 11]
-        self.steps = [100]
-        self.sd_extractor = SDExtractor(self.device, model='runwayml/stable-diffusion-v1-5')
 
         self.patch_size = 14
         self.num_patches = 60

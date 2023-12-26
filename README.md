@@ -25,11 +25,16 @@ We provide a well-written and documented code base for semantic correspondence, 
     - PF-WILLOW: `bash datasets/download_pfwillow.sh`
     - CUB-200-2011: `bash datasets/download_cub.sh`
 
-2. Setup your `dataset_config.json`
-    - Use absolute path to folder
-    - If you want to limit the number of samples for a specific dataset, set `num_samples` to an arbitrary integer
+2. Setup your `dataset_config.yaml`
+    - `path`: absolute path to the dataset
+    - `num_samples`: limit the number of samples to use
+    - `random_sampling`: whether to shuffle the dataset before sampling
 
-3. Setup your `model_config.json`
+3. Setup your `model_config.yaml`
+    - `image_size`: size of the input images after resizing
+    - `batch_size`: overwrite the batch size for evaluation
+    - `grad_enabled`: whether to enable gradient calculation
+    - `drop_last_batch`: whether to drop the last batch if it is smaller than the batch size
 
 4. Run the evaluation script: `python evaluate.py [options]`
     - Make sure to do set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`
