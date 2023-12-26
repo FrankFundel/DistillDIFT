@@ -2,12 +2,10 @@ import itertools
 import torch
 import torch.utils.data as data
 import numpy as np
-import h5py
 import json
 import os
 import csv
 from PIL import Image
-import imagesize
 
 
 class CorrespondenceDataset(data.Dataset):
@@ -15,19 +13,11 @@ class CorrespondenceDataset(data.Dataset):
     General dataset class for datasets with correspondence points.
     """
 
-    def __init__(self, dataset_directory, preprocess=None, cache_path=None, split='test'):
+    def __init__(self, dataset_directory, preprocess=None, split='test'):
         self.dataset_directory = dataset_directory
         self.split = split
         self.preprocess = preprocess
         self.data = self.load_data()
-
-        self.use_cache = False
-        if cache_path is not None:
-            self.load_cache(cache_path)
-
-    def load_cache(self, cache_path):
-        self.cache = h5py.File(cache_path, 'r')
-        self.use_cache = True
 
     def load_data(self):
         raise NotImplementedError
@@ -38,17 +28,14 @@ class CorrespondenceDataset(data.Dataset):
     def __getitem__(self, idx):
         sample = self.data[idx]
 
-        sample['source_size'] = imagesize.get(sample['source_image_path'])
-        sample['target_size'] = imagesize.get(sample['target_image_path'])
-        if self.use_cache:
-            source_key = os.path.basename(sample['source_image_path'])
-            target_key = os.path.basename(sample['target_image_path'])
-            sample['source_image'] = torch.tensor(self.cache[source_key][()])
-            sample['target_image'] = torch.tensor(self.cache[target_key][()])
-        else:
-            sample['source_image'] = Image.open(sample['source_image_path'])
-            sample['target_image'] = Image.open(sample['target_image_path'])
-        
+        # Load image
+        sample['source_image'] = Image.open(sample['source_image_path'])
+        sample['target_image'] = Image.open(sample['target_image_path'])
+
+        # Save image size
+        sample['source_size'] = sample['source_image'].size
+        sample['target_size'] = sample['target_image'].size
+    
         if self.preprocess is not None:
             sample = self.preprocess(sample)
 

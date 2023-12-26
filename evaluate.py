@@ -5,9 +5,9 @@ import argparse
 
 import torch.utils.data as data
 
-from utils.dataset import read_dataset_config, load_dataset
+from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Preprocessor
 from utils.model import read_model_config, load_model
-from utils.correspondence import preprocess_image, preprocess_points, preprocess_bbox, compute_pck_img, compute_pck_bbox
+from utils.correspondence import compute_pck_img, compute_pck_bbox
 
 def evaluate(model, dataloader, image_size, pck_threshold, use_cache=False):
     model.eval()
@@ -45,70 +45,6 @@ def evaluate(model, dataloader, image_size, pck_threshold, use_cache=False):
     pbar.close()
     return pck_img / keypoints, pck_bbox / keypoints
 
-import h5py
-from PIL import Image
-
-class Preprocessor:
-    def __init__(self, image_size, preprocess_image=True, preprocess_points=True, preprocess_bbox=True):
-        self.image_size = image_size
-        self.preprocess_image = preprocess_image
-        self.preprocess_points = preprocess_points
-        self.preprocess_bbox = preprocess_bbox
-
-    def __call__(self, sample):
-        #source_size = sample['source_image'].size
-        #target_size = sample['target_image'].size
-        source_size = sample['source_size']
-        target_size = sample['target_size']
-        if self.preprocess_image:
-            sample['source_image'] = preprocess_image(sample['source_image'], self.image_size)
-            sample['target_image'] = preprocess_image(sample['target_image'], self.image_size)
-        if self.preprocess_points:
-            sample['source_points'] = preprocess_points(sample['source_points'], source_size, self.image_size)
-            sample['target_points'] = preprocess_points(sample['target_points'], target_size, self.image_size)
-        if self.preprocess_bbox:
-            sample['source_bbox'] = preprocess_bbox(sample['source_bbox'], source_size, self.image_size)
-            sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], target_size, self.image_size)
-        return sample
-
-def cache(model, dataset, cache_path, num_workers):
-    print(f"Caching features to {cache_path}")
-    with h5py.File(cache_path, 'a') as f:
-        keys = list(f.keys()) # Get keys already in cache
-        samples = []
-        for sample in dataset.data:
-            source_key = os.path.basename(sample['source_image_path'])
-            target_key = os.path.basename(sample['target_image_path'])
-            if source_key not in keys:
-                image = Image.open(sample['source_image_path'])
-                image = preprocess_image(image, model.image_size)
-                samples.append((source_key, image, sample['category']))
-                keys.append(source_key)
-            if target_key not in keys:
-                image = Image.open(sample['target_image_path'])
-                image = preprocess_image(image, model.image_size)
-                samples.append((target_key, image, sample['category']))
-                keys.append(target_key)
-        
-        batch_size = model.batch_size
-        dataloader = data.DataLoader(samples,
-                                     batch_size=batch_size,
-                                     shuffle=False,
-                                     num_workers=num_workers)
-
-        with torch.no_grad():
-            for keys, images, categories in tqdm.tqdm(dataloader):
-                # extend last batch if necessary
-                if len(keys) < batch_size:
-                    images = torch.cat([images, images[-1].repeat(batch_size-len(keys), 1, 1, 1)])
-                    categories = list(categories) + [categories[-1]] * (batch_size-len(keys))
-                images = images.to(device)
-                features = model.get_features(images, categories).cpu()
-                for i, key in enumerate(keys):
-                    f.create_dataset(key, data=features[i])
-            
-    # Set cache in dataset
-    dataset.load_cache(cache_path)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -175,8 +111,8 @@ if __name__ == '__main__':
         if use_cache:
             if not os.path.exists(cache_dir):
                 os.mkdir(cache_dir)
-            cache_path = os.path.join(cache_dir, f"{model_name}_{config['name']}.h5")
-            cache(model, dataset, cache_path, num_workers)
+            cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
+            dataset = cache_dataset(model, dataset, cache_path, num_workers)
 
         def collate_fn(batch):
             return {

@@ -7,11 +7,9 @@ We provide a well-written and documented code base for semantic correspondence, 
     - DiffusionModel returns nested list of timesteps, layers and predicted points
 - DistributedDataParallel
 
-- Make code simpler and more beautiful
 - Try not loading onto GPU when cached
 - Try not resizing to image_size but to source_size and target_size when calculating correspondence
 
-- Make wrapper for Dataset instead
 - Zhang with batch mode
 
 # Related Work
