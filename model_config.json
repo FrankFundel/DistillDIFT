@@ -1,6 +1,7 @@
 {
     "hedlin": {
         "image_size": [512, 512],
+        "batch_size": 1,
         "grad_enabled": true
     },
     "tang": {

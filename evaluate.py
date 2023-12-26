@@ -166,6 +166,8 @@ if __name__ == '__main__':
 
         # Limit number of samples if specified
         min_num_samples = min(filter(None, [num_samples, config.get('num_samples', None), len(dataset)]))
+        if config.get('random_sampling', False):
+            dataset.data = [dataset.data[i] for i in torch.randperm(len(dataset))]
         dataset.data = dataset.data[:min_num_samples]
 
         # Cache dataset
