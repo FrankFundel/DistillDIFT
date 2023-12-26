@@ -1,5 +1,4 @@
-import json
-import os
+import yaml
 
 from datasets.dataset import SPairDataset, PFWillowDataset, CUBDataset
 
@@ -14,7 +13,7 @@ def read_dataset_config(config_path):
         dict: Config
     """
     with open(config_path) as f:
-        config = json.load(f)
+        config = yaml.safe_load(f)
     return config
 
 def load_dataset(dataset_name, config, preprocess=None):

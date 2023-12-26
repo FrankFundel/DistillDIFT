@@ -1,4 +1,4 @@
-import json
+import yaml
 
 from models.luo import LuoModel
 from models.hedlin import HedlinModel
@@ -16,7 +16,7 @@ def read_model_config(config_path):
         dict: Config
     """
     with open(config_path) as f:
-        config = json.load(f)
+        config = yaml.safe_load(f)
     return config
 
 def load_model(model_name, config, device_type):

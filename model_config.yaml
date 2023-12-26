@@ -1,0 +1,23 @@
+# Configuration file for the training of the models
+
+hedlin:
+  image_size:
+    - 512
+    - 512
+  batch_size: 1
+  grad_enabled: true
+tang:
+  image_size:
+    - 768
+    - 768
+  batch_size: 1
+zhang:
+  image_size:
+    - 960
+    - 960
+  batch_size: 1
+luo:
+  image_size:
+    - 224
+    - 224
+  drop_last_batch: true

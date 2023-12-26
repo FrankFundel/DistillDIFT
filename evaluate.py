@@ -113,8 +113,8 @@ def cache(model, dataset, cache_path, num_workers):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('model_name', type=str, default='luo', help='Name of model to evaluate')
-    parser.add_argument('--dataset_config', type=str, default='dataset_config.json', help='Path to dataset config file')
-    parser.add_argument('--model_config', type=str, default='model_config.json', help='Path to model config file')
+    parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
+    parser.add_argument('--model_config', type=str, default='model_config.yaml', help='Path to model config file')
     parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'], help='Device to run model on')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
@@ -126,6 +126,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     model_name = args.model_name
     dataset_config = args.dataset_config
+    model_config = args.model_config
     device_type = args.device
     num_samples = args.num_samples
     num_workers = args.num_workers
@@ -134,7 +135,7 @@ if __name__ == '__main__':
     cache_dir = args.cache_dir
 
     # Load model config
-    model_config = read_model_config('model_config.json')[model_name]
+    model_config = read_model_config(model_config)[model_name]
 
     # Get model parameters
     image_size = model_config.get('image_size', (512, 512))

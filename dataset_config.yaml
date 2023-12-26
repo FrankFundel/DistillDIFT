@@ -1,0 +1,13 @@
+# Dataset configuration file for DistillDIFT
+
+CUB-200-2011:
+  path: "/export/home/ra63des/DistillDIFT/data/CUB_200_2011"
+  num_samples: 4000
+  random_sampling: true
+
+PF-WILLOW:
+  path: "/export/home/ra63des/DistillDIFT/data/PF-WILLOW"
+  random_sampling: true
+
+SPair-71k:
+  path: "/export/group/datasets/SPair-71k"
