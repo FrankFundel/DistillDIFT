@@ -31,14 +31,13 @@ def evaluate(model, dataloader, pck_threshold, use_cache=False):
 
         # Calculate PCK value
         # Points per sample are stored in a list because they have different lengths, so we need to iterate over them
-        source_points = batch['source_points']
         target_points = batch['target_points']
         target_bbox = batch['target_bbox']
         target_size = batch['target_size']
-        for i in range(len(source_points)):
+        for i in range(len(target_points)):
             pck_img += compute_pck_img(predicted_points[i], target_points[i], target_size[i], pck_threshold)
             pck_bbox += compute_pck_bbox(predicted_points[i], target_points[i], target_bbox[i], pck_threshold)
-            keypoints += len(source_points[i])
+            keypoints += len(target_points[i])
 
         # Update progress bar
         pbar.update(1)
@@ -101,9 +100,7 @@ if __name__ == '__main__':
     for dataset_name in dataset_config:
         print(f"Dataset: {dataset_name}")
         config = dataset_config[dataset_name]
-        preprocess = Preprocessor(image_size,
-                                  preprocess_image = not use_cache,
-                                  rescale_data = rescale_data)
+        preprocess = Preprocessor(image_size, preprocess_image = not use_cache, rescale_data=rescale_data)
         dataset = load_dataset(dataset_name, config, preprocess)
 
         # Limit number of samples if specified
@@ -140,7 +137,6 @@ if __name__ == '__main__':
                                      drop_last=drop_last_batch,
                                      collate_fn=collate_fn)
 
-        # with torch.no_grad():
         with torch.set_grad_enabled(grad_enabled):
             pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, use_cache)
 

@@ -1,32 +1,30 @@
 import torch
 from torch.nn.functional import interpolate
 
-from .base import BaseModel
+from .base import CacheModel
 from utils.correspondence import compute_correspondence
 from extractors.diffusion import SDExtractor
 
-class ZhangModel(BaseModel):
+class ZhangModel(CacheModel):
     """
     Model from Zhang et al. (https://arxiv.org/abs/2305.14334)
     Using own SD and DINO extractors
     """
     def __init__(self, batch_size, image_size, device="cuda"):
-        super(ZhangModel, self).__init__()
+        super(ZhangModel, self).__init__(image_size, device)
 
         self.batch_size = batch_size
-        self.image_size = image_size
-        self.device = device
 
         self.pca_dim = 256
         self.layers = [3, 7, 11]
         self.steps = [100]
-        self.sd_extractor = SDExtractor(self.device, model='runwayml/stable-diffusion-v1-5')
+        self.sd_extractor = SDExtractor(device, model='runwayml/stable-diffusion-v1-5')
 
         self.patch_size = 14
         self.num_patches = 60
         self.dino_image_size = 840
         self.dino_layer = 11
-        self.dino_extractor = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').to(self.device)
+        self.dino_extractor = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').to(device)
         self.dino_extractor.eval()
 
     def co_pca(self, features, n=64):
@@ -66,14 +64,13 @@ class ZhangModel(BaseModel):
         return features
     
     def compute_correspondence(self, sample):
-        source_features = sample['source_image']
-        target_features = sample['target_image']
-        source_points = sample['source_points']
-        
-        assert len(source_features) == 1 and len(target_features) == 1 and len(source_points) == 1
-        source_points = source_points[0].unsqueeze(0)
+        assert len(sample['source_image']) == 1 and len(sample['target_image']) == 1
 
-        predicted_points = compute_correspondence(source_features, target_features, source_points, self.image_size)
+        predicted_points = compute_correspondence(sample['source_image'],
+                                                  sample['target_image'],
+                                                  sample['source_points'][0].unsqueeze(0),
+                                                  sample['source_size'][0],
+                                                  sample['target_size'][0])
         return predicted_points.cpu()
 
     def __call__(self, sample):

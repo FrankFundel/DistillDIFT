@@ -6,7 +6,7 @@ import json
 import os
 import csv
 from PIL import Image
-
+import copy
 
 class CorrespondenceDataset(data.Dataset):
     """
@@ -26,7 +26,7 @@ class CorrespondenceDataset(data.Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        sample = self.data[idx]
+        sample = copy.deepcopy(self.data[idx]) # prevent memory leak
 
         # Load image
         sample['source_image'] = Image.open(sample['source_image_path'])

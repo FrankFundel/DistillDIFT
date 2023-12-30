@@ -1,18 +1,15 @@
-from .base import BaseModel
+from .base import CacheModel
 from utils.correspondence import compute_correspondence
 from replicate.tang.models.dift_sd import SDFeaturizer
 
-class TangModel(BaseModel):
+class TangModel(CacheModel):
     """
     Model from Tang et al. (https://arxiv.org/abs/2306.03881)
     """
     def __init__(self, image_size, device="cuda"):
-        super(TangModel, self).__init__()
+        super(TangModel, self).__init__(image_size, device)
 
-        self.device = device
         self.dift = SDFeaturizer(device)
-
-        self.image_size = image_size
         self.ensemble_size = 8
 
     def get_features(self, image, category):

@@ -2,6 +2,7 @@ import os
 import yaml
 import tqdm
 import h5py
+import copy
 import torch
 import imagesize
 from PIL import Image
@@ -87,7 +88,7 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
                 for i, key in enumerate(keys):
                     f.create_dataset(key, data=features[i])
             
-    # Wrap dataset in CacheDataset
+    print("Caching complete.")
     return CacheDataset(dataset, cache_path)
 
 class CacheDataset(CorrespondenceDataset):
@@ -101,7 +102,7 @@ class CacheDataset(CorrespondenceDataset):
         self.cache = h5py.File(cache_path, 'r')
 
     def __getitem__(self, idx):
-        sample = self.data[idx]
+        sample = copy.deepcopy(self.data[idx]) # Prevent memory leak
 
         # Get image size quickly
         sample['source_size'] = imagesize.get(sample['source_image_path'])
