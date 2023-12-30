@@ -8,7 +8,7 @@ from PIL import Image
 import torch.utils.data as data
 
 from datasets.dataset import CorrespondenceDataset, SPairDataset, PFWillowDataset, CUBDataset
-from utils.correspondence import preprocess_image, preprocess_points, preprocess_bbox
+from utils.correspondence import preprocess_image, flip_points, flip_bbox, rescale_points, rescale_bbox
 
 def read_dataset_config(config_path):
     """
@@ -46,7 +46,7 @@ def load_dataset(dataset_name, config, preprocess=None):
     
     raise ValueError('Dataset not recognized.')
 
-def cache_dataset(model, dataset, cache_path, num_workers):
+def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
     """
     Cache features from dataset.
     """
@@ -69,11 +69,10 @@ def cache_dataset(model, dataset, cache_path, num_workers):
             process(sample['target_image_path'], sample['category'])
         
         # Create dataloader
-        batch_size = model.batch_size
         dataloader = data.DataLoader(samples,
-                                        batch_size=batch_size,
-                                        shuffle=False,
-                                        num_workers=num_workers)
+                                     batch_size=batch_size,
+                                     shuffle=False,
+                                     num_workers=num_workers)
 
         # Get features and save to cache file
         with torch.no_grad():
@@ -83,6 +82,7 @@ def cache_dataset(model, dataset, cache_path, num_workers):
                 if len(keys) < batch_size:
                     images = torch.cat([images, images[-1].repeat(batch_size-len(keys), 1, 1, 1)])
                     categories = list(categories) + [categories[-1]] * (batch_size-len(keys))
+
                 features = model.get_features(images, categories).cpu()
                 for i, key in enumerate(keys):
                     f.create_dataset(key, data=features[i])
@@ -119,22 +119,42 @@ class CacheDataset(CorrespondenceDataset):
         return sample
     
 class Preprocessor:
-    def __init__(self, image_size, preprocess_image=True, preprocess_points=True, preprocess_bbox=True):
+    """
+    Preprocess dataset samples.
+
+    Args:
+        image_size (tuple): (width, height) used for resizing images
+        preprocess_image (bool): Whether to preprocess images (resize, normalize, etc.)
+        rescale_data (bool): Whether to rescale points and bounding boxes (also sets source_size and target_size to image_size)
+    """
+
+    def __init__(self, image_size, preprocess_image=True, rescale_data=True):
         self.image_size = image_size
         self.preprocess_image = preprocess_image
-        self.preprocess_points = preprocess_points
-        self.preprocess_bbox = preprocess_bbox
+        self.rescale_data = rescale_data
 
     def __call__(self, sample):
         source_size = sample['source_size']
         target_size = sample['target_size']
+
+        # Preprocess images
         if self.preprocess_image:
             sample['source_image'] = preprocess_image(sample['source_image'], self.image_size)
             sample['target_image'] = preprocess_image(sample['target_image'], self.image_size)
-        if self.preprocess_points:
-            sample['source_points'] = preprocess_points(sample['source_points'], source_size, self.image_size)
-            sample['target_points'] = preprocess_points(sample['target_points'], target_size, self.image_size)
-        if self.preprocess_bbox:
-            sample['source_bbox'] = preprocess_bbox(sample['source_bbox'], source_size, self.image_size)
-            sample['target_bbox'] = preprocess_bbox(sample['target_bbox'], target_size, self.image_size)
+
+        # Rescale points and bounding boxes
+        if self.rescale_data:
+            sample['source_points'] = rescale_points(sample['source_points'], source_size, self.image_size)
+            sample['target_points'] = rescale_points(sample['target_points'], target_size, self.image_size)
+            sample['source_bbox'] = rescale_bbox(sample['source_bbox'], source_size, self.image_size)
+            sample['target_bbox'] = rescale_bbox(sample['target_bbox'], target_size, self.image_size)
+            sample['source_size'] = self.image_size
+            sample['target_size'] = self.image_size
+        
+        # Flip x, y and w, h axis
+        sample['source_points'] = flip_points(sample['source_points'])
+        sample['target_points'] = flip_points(sample['target_points'])
+        sample['source_bbox'] = flip_bbox(sample['source_bbox'])
+        sample['target_bbox'] = flip_bbox(sample['target_bbox'])
+
         return sample

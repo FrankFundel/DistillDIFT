@@ -9,7 +9,7 @@ from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Prep
 from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 
-def evaluate(model, dataloader, image_size, pck_threshold, use_cache=False):
+def evaluate(model, dataloader, pck_threshold, use_cache=False):
     model.eval()
 
     pbar = tqdm.tqdm(total=len(dataloader))
@@ -30,11 +30,13 @@ def evaluate(model, dataloader, image_size, pck_threshold, use_cache=False):
             predicted_points = model(batch)
 
         # Calculate PCK value
+        # Points per sample are stored in a list because they have different lengths, so we need to iterate over them
         source_points = batch['source_points']
         target_points = batch['target_points']
         target_bbox = batch['target_bbox']
+        target_size = batch['target_size']
         for i in range(len(source_points)):
-            pck_img += compute_pck_img(predicted_points[i], target_points[i], image_size, pck_threshold)
+            pck_img += compute_pck_img(predicted_points[i], target_points[i], target_size[i], pck_threshold)
             pck_bbox += compute_pck_bbox(predicted_points[i], target_points[i], target_bbox[i], pck_threshold)
             keypoints += len(source_points[i])
 
@@ -78,6 +80,7 @@ if __name__ == '__main__':
     batch_size = model_config.get('batch_size', 8)
     drop_last_batch = model_config.get('drop_last_batch', False)
     grad_enabled = model_config.get('grad_enabled', False)
+    rescale_data = model_config.get('rescale_data', False)
 
     # Load model
     model = load_model(model_name, model_config, device_type)
@@ -98,12 +101,15 @@ if __name__ == '__main__':
     for dataset_name in dataset_config:
         print(f"Dataset: {dataset_name}")
         config = dataset_config[dataset_name]
-        preprocess = Preprocessor(image_size, preprocess_image = not use_cache)
+        preprocess = Preprocessor(image_size,
+                                  preprocess_image = not use_cache,
+                                  rescale_data = rescale_data)
         dataset = load_dataset(dataset_name, config, preprocess)
 
         # Limit number of samples if specified
         min_num_samples = min(filter(None, [num_samples, config.get('num_samples', None), len(dataset)]))
         if config.get('random_sampling', False):
+            torch.manual_seed(42)
             dataset.data = [dataset.data[i] for i in torch.randperm(len(dataset))]
         dataset.data = dataset.data[:min_num_samples]
 
@@ -112,7 +118,7 @@ if __name__ == '__main__':
             if not os.path.exists(cache_dir):
                 os.mkdir(cache_dir)
             cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
-            dataset = cache_dataset(model, dataset, cache_path, num_workers)
+            dataset = cache_dataset(model, dataset, cache_path, batch_size, num_workers)
 
         def collate_fn(batch):
             return {
@@ -122,7 +128,9 @@ if __name__ == '__main__':
                 'target_points': [sample['target_points'] for sample in batch],
                 'source_bbox': [sample['source_bbox'] for sample in batch],
                 'target_bbox': [sample['target_bbox'] for sample in batch],
-                'category': [sample['category'] for sample in batch]
+                'category': [sample['category'] for sample in batch],
+                'source_size': [sample['source_size'] for sample in batch],
+                'target_size': [sample['target_size'] for sample in batch],
             }
         
         dataloader = data.DataLoader(dataset,
@@ -134,6 +142,6 @@ if __name__ == '__main__':
 
         # with torch.no_grad():
         with torch.set_grad_enabled(grad_enabled):
-            pck_img, pck_bbox = evaluate(model, dataloader, image_size, pck_threshold, use_cache)
+            pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, use_cache)
 
         print(f"PCK_img: {pck_img * 100:.2f}, PCK_bbox: {pck_bbox * 100:.2f}\n")

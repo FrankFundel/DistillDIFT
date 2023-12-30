@@ -6,11 +6,7 @@ We provide a well-written and documented code base for semantic correspondence, 
 - Implement layer- and timestep- wise PCK
     - DiffusionModel returns nested list of timesteps, layers and predicted points
 - DistributedDataParallel
-
 - Try not loading onto GPU when cached
-- Try not resizing to image_size but to source_size and target_size when calculating correspondence
-
-- Zhang with batch mode
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences

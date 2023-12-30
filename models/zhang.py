@@ -77,11 +77,12 @@ class ZhangModel(BaseModel):
         return predicted_points.cpu()
 
     def __call__(self, sample):
-        # Prepare data
         source_images = sample['source_image']
         target_images = sample['target_image']
         source_points = sample['source_points']
         category = sample['category']
+
+        # Prepare data
         assert len(source_images) == 1 and len(target_images) == 1 and len(source_points) == 1
         source_points = source_points[0].unsqueeze(0)
         images = torch.cat([source_images, target_images]) #.type(torch.float16)
@@ -91,14 +92,11 @@ class ZhangModel(BaseModel):
         features = self.sd_extractor(images, prompt=prompt, layers=self.layers, steps=self.steps)
         
         # Aggregate diffusion features
-        # Simple concatenation results in an unnecessarily high-dimensional feature (2560+1920+960 = 5440).
-        # To reduce the high dimension, we compute PCA across the pair of images for each feature layer, and then upsample
-        # lower resolution features (i.e., layer 2 and 5) to be the same as the high resolution one (i.e., layer 8) before concatenation.
         b, n, h, w = features[self.steps[0]][self.layers[-1]].shape
         diffusion_features = []
         for t in self.steps:
             for l in self.layers:
-                reduced_feature = self.co_pca(features[t][l], n=self.pca_dim) # [B, n_components, H, W]
+                reduced_feature = self.co_pca(features[t][l], n=self.pca_dim) # [2, n_components, H, W]
                 upsampled_feature = interpolate(reduced_feature, size=w, mode="bilinear")
                 diffusion_features.append(upsampled_feature)
         diffusion_features = torch.cat(diffusion_features, dim=1)

@@ -2,13 +2,37 @@ import torch
 from torchvision.transforms import ToTensor
 from PIL import Image
 
+def flip_points(points):
+    """
+    Flip x and y axis.
+
+    Args:
+        points (torch.Tensor): [N, 2] where each point is (x, y)
+
+    Returns:
+        torch.Tensor: [N, 2] where each point is (y, x)
+    """
+    return points[:, [1, 0]]
+
+def flip_bbox(bbox):
+    """
+    Flip x, y and w, h axis.
+
+    Args:
+        bbox (torch.Tensor): [4] with (x, y, w, h)
+
+    Returns:
+        torch.Tensor: [4] with (y, x, h, w)
+    """
+    return bbox[[1, 0, 3, 2]]
+
 def rescale_points(points, old_size, new_size):
     """
     Rescale points to match new image size.
 
     Args:
         points (torch.Tensor): [N, 2] where each point is (x, y)
-        old_size (tuple): (width, height)
+        old_size (tuple): (height, width)
         new_size (tuple): (width, height)
 
     Returns:
@@ -65,7 +89,7 @@ def preprocess_points(points, old_size, new_size):
         torch.Tensor: [N, 2] where each point is (y, x)
     """
     points = rescale_points(points, old_size, new_size) # [N, 2]
-    points = points[:, [1, 0]] # flip x and y axis to match image
+    points = flip_points(points) # flip x and y axis to match image
     return points
 
 def postprocess_points(points, old_size, new_size):
@@ -80,7 +104,7 @@ def postprocess_points(points, old_size, new_size):
     Returns:
         torch.Tensor: [N, 2] where each point is (x, y)
     """
-    points = points[:, [1, 0]] # flip x and y axis to match image
+    points = flip_points(points) # flip x and y axis to match image
     points = rescale_points(points, old_size, new_size) # [N, 2]
     return points
 
@@ -97,7 +121,7 @@ def preprocess_bbox(bbox, old_size, new_size):
         torch.Tensor: [4] with (y, x, h, w)
     """
     bbox = rescale_bbox(bbox, old_size, new_size) # [4]
-    bbox = bbox[[1, 0, 3, 2]] # flip x and y axis to match image
+    bbox = flip_bbox(bbox) # flip x and y axis to match image
     return bbox
 
 def postprocess_bbox(bbox, old_size, new_size):
@@ -112,7 +136,7 @@ def postprocess_bbox(bbox, old_size, new_size):
     Returns:
         torch.Tensor: [4] with (x, y, w, h)
     """
-    bbox = bbox[[1, 0, 3, 2]] # flip x and y axis to match image
+    bbox = flip_bbox(bbox) # flip x and y axis to match image
     bbox = rescale_bbox(bbox, old_size, new_size) # [4]
     return bbox
 
@@ -122,14 +146,15 @@ def points_to_idxs(points, size):
     
     Args:
         points (torch.Tensor): [B, N, 2] where each point is (y, x)
-        size (tuple): (width, height)
+        size (tuple): (height, width)
     
-    Returns:
+    Returns:    
         torch.Tensor: [B, N] where each point is an index
     """
-    points_y = points[:, :, 0].clamp(0, size[1]-1)
-    points_x = points[:, :, 1].clamp(0, size[0]-1)
-    idxs = size[0] * torch.round(points_y) + torch.round(points_x)
+    h, w = size
+    points_y = points[:, :, 0].clamp(0, h - 1)
+    points_x = points[:, :, 1].clamp(0, w - 1)
+    idxs = w * torch.round(points_y).long() + torch.round(points_x).long()
     return idxs
 
 def flatten_features(features):
@@ -156,7 +181,7 @@ def normalize_features(features):
     """
     return features / torch.linalg.norm(features, dim=-1).unsqueeze(-1)
 
-def compute_correspondence(source_features, target_features, source_points, size):
+def compute_correspondence(source_features, target_features, source_points, source_size, target_size=None):
     """
     Compute correspondence between source and target features using points from the source image.
 
@@ -164,20 +189,26 @@ def compute_correspondence(source_features, target_features, source_points, size
         source_features (torch.Tensor): [B, C, H, W]
         target_features (torch.Tensor): [B, C, H, W]
         source_points (torch.Tensor): [B, N, 2] where each point is (y, x)
-        size (tuple): (width, height)
+        source_size (tuple): (width, height)
+        target_size (tuple): (width, height)
 
     Returns:
         torch.Tensor: [B, N, 2] where each point is (y, x)
     """
+    
+    if target_size is None:
+        target_size = source_size
 
-    w, h = size
+    # Get image sizes
+    sw, sh = source_size
+    tw, th = target_size
 
     # Resize features to match scale of points
-    source_features = torch.nn.functional.interpolate(source_features, size, mode="bilinear")
-    target_features = torch.nn.functional.interpolate(target_features, size, mode="bilinear")
+    source_features = torch.nn.functional.interpolate(source_features, (sh, sw), mode="bilinear")
+    target_features = torch.nn.functional.interpolate(target_features, (th, tw), mode="bilinear")
 
     # Use source points to get features
-    source_idxs = points_to_idxs(source_points, (h, w)).long() # [B, N]
+    source_idxs = points_to_idxs(source_points, (sh, sw)) # [B, N]
     source_features = flatten_features(source_features) # [B, HxW, C]
     source_features = normalize_features(source_features) # [B, HxW, C]
     source_features = source_features[torch.arange(source_features.shape[0])[:, None], source_idxs] # [B, N, C]
@@ -189,7 +220,7 @@ def compute_correspondence(source_features, target_features, source_points, size
 
     # Get max similarity for each point and convert to coordinates (y, x)
     predicted_idx = torch.argmax(similarity_map, dim=2) # [B, N]
-    predicted_points = torch.stack([predicted_idx // h, predicted_idx % h], dim=2) # [B, N, 2]
+    predicted_points = torch.stack([predicted_idx // tw, predicted_idx % tw], dim=2) # [B, N, 2]
     return predicted_points
 
 def compute_pck_img(predicted_points, target_points, image_size, threshold=0.1):

@@ -30,13 +30,13 @@ class HedlinModel(BaseModel):
         self.model.enable_xformers_memory_efficient_attention()
     
     def __call__(self, sample):
-        # Prepare inputs
         source_images = sample['source_image']
         target_images = sample['target_image']
         source_points = sample['source_points']
+
+        # Prepare inputs
         assert len(source_images) == 1 and len(target_images) == 1 and len(source_points) == 1
         source_images, target_images, source_points = source_images[0].unsqueeze(0), target_images[0].unsqueeze(0), source_points[0].unsqueeze(0)
-        
         source_points = source_points[:, :, [1, 0]] # flip x and y axis again
         source_points = source_points.permute(0, 2, 1) # (1, 2, N)
 
