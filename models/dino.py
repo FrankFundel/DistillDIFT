@@ -1,31 +1,24 @@
 import torch
-from torch.nn.functional import interpolate
-
-from .base import BaseModel
+from .base import CacheModel
 from utils.correspondence import compute_correspondence
 
-class DINOModel(BaseModel):
+class DINOModel(CacheModel):
     """
     DINO models.
 
     Args:
-        image_size (int): Image size
         version (int): Model version, 1 or 2
         model_size (str): Model size, 's', 'b', 'l', 'g'
         patch_size (int): Patch size
         layers (list): Layers to use
         device (str): Device to run model on
     """
-    def __init__(self, image_size, version, model_size, patch_size, layers, device="cuda"):
-        super(DINOModel, self).__init__()
-
-        self.image_size = image_size
-        self.device = device
+    def __init__(self, version, model_size, patch_size, layers, device="cuda"):
+        super(DINOModel, self).__init__(device)
 
         self.version = version
         self.model_size = model_size
         self.patch_size = patch_size
-        self.num_patches = image_size[0] // patch_size
         self.layers = layers
 
         if version == 1:
@@ -37,42 +30,38 @@ class DINOModel(BaseModel):
         self.extractor = torch.hub.load(repo, model).to(device)
         self.extractor.eval()
 
-    def get_features(self, image):
-        image = (image + 1) / 2 # image is bezween -1 and 1, make image between 0 and 1
-        image = interpolate(image, size=self.image_size, mode="bilinear")
-        features = self.extractor.get_intermediate_layers( 
-            image, 1, return_class_token=False
-        )[0].permute(0, 2, 1).reshape(image.shape[0], -1, self.num_patches, self.num_patches)
-        return features
-    
-    def compute_correspondence(self, sample):
-        source_features = sample['source_image']
-        target_features = sample['target_image']
-        source_points = sample['source_points']
-        
-        predicted_points = compute_correspondence(source_features, target_features, source_points, self.image_size)
-        return predicted_points.cpu()
+    def get_features(self, image, category=None):
+        h = image.shape[2] // self.patch_size
+        w = image.shape[3] // self.patch_size
+        num_layers_from_bottom = len(self.extractor.blocks) - min(self.layers)
 
-    def __call__(self, sample):
-        source_images = sample['source_image']
-        target_images = sample['target_image']
-        source_points = sample['source_points']
-        
-        images = torch.cat([source_images, target_images]) #.type(torch.float16)
-        
-        images = (images + 1) / 2 # image is bezween -1 and 1, make image between 0 and 1
         if self.version == 1:
-            features = self.extractor.get_intermediate_layers(images, 1)[0][:, :-1] # remove class token
+            features = [f[:, :-1] for f in self.extractor.get_intermediate_layers(image, num_layers_from_bottom)] # remove class token
         elif self.version == 2:
-            features = self.extractor.get_intermediate_layers(images, 1, return_class_token=False)[0]
-        features = features.permute(0, 2, 1).reshape(images.shape[0], -1, self.num_patches, self.num_patches)
-        source_features = features[:len(source_images)]
-        target_features = features[len(source_images):]
+            features = self.extractor.get_intermediate_layers(image, num_layers_from_bottom, return_class_token=False)
         
+        return list(zip(*[[b.T.reshape(-1, h, w) for b in l] for l in features])) # [l, b, c, n] -> [b, l, c, h, w]
+    
+    def compute_correspondence(self, batch):
         predicted_points = []
-        for i in range(source_features.shape[0]):
-            predicted_points.append(compute_correspondence(source_features[i].unsqueeze(0),
-                                                           target_features[i].unsqueeze(0),
-                                                           source_points[i].unsqueeze(0),
-                                                           self.image_size).squeeze(0).cpu())
+        batch_size = len(batch['source_image'])
+        for b in range(batch_size):
+            pred = []
+            for l in range(len(self.layers)):
+                pred.append(compute_correspondence(batch['source_image'][b][l].unsqueeze(0),
+                                                    batch['target_image'][b][l].unsqueeze(0),
+                                                    batch['source_points'][b].unsqueeze(0),
+                                                    batch['source_size'][b],
+                                                    batch['target_size'][b])
+                                                    .squeeze(0).cpu())
+            predicted_points.append(pred)
         return predicted_points
+
+    def __call__(self, batch):
+        images = torch.cat([batch['source_image'], batch['target_image']])
+
+        features = self.get_features(images)
+        batch['source_image'] = features[:len(batch['source_image'])]
+        batch['target_image'] = features[len(batch['target_image']):]
+        
+        return self.compute_correspondence(batch)

@@ -2,6 +2,7 @@ import os
 import torch
 import tqdm
 import argparse
+from matplotlib import pyplot as plt
 
 import torch.utils.data as data
 
@@ -9,13 +10,14 @@ from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Prep
 from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 
-def evaluate(model, dataloader, pck_threshold, use_cache=False):
+def evaluate(model, dataloader, pck_threshold, layers, use_cache=False):
     model.eval()
 
     pbar = tqdm.tqdm(total=len(dataloader))
 
-    pck_img = 0
-    pck_bbox = 0
+    num_layers = len(layers) if layers is not None else 1
+    pck_img = torch.zeros(num_layers)
+    pck_bbox = torch.zeros(num_layers)
     keypoints = 0
     
     for batch in dataloader:
@@ -29,19 +31,20 @@ def evaluate(model, dataloader, pck_threshold, use_cache=False):
         else:
             predicted_points = model(batch)
 
-        # Calculate PCK value
-        # Points per sample are stored in a list because they have different lengths, so we need to iterate over them
+        # Calculate PCK values
+        batch_size = len(predicted_points)
         target_points = batch['target_points']
         target_bbox = batch['target_bbox']
         target_size = batch['target_size']
-        for i in range(len(target_points)):
-            pck_img += compute_pck_img(predicted_points[i], target_points[i], target_size[i], pck_threshold)
-            pck_bbox += compute_pck_bbox(predicted_points[i], target_points[i], target_bbox[i], pck_threshold)
-            keypoints += len(target_points[i])
+        for b in range(batch_size):
+            for l in range(len(layers)) if layers is not None else [None]:
+                pck_img[l] += compute_pck_img(predicted_points[b][l], target_points[b], target_size[b], pck_threshold)
+                pck_bbox[l] += compute_pck_bbox(predicted_points[b][l], target_points[b], target_bbox[b], pck_threshold)
+            keypoints += len(target_points[b])
 
         # Update progress bar
         pbar.update(1)
-        pbar.set_postfix({'PCK_img': (pck_img / keypoints) * 100, 'PCK_bbox': (pck_bbox / keypoints) * 100})
+        pbar.set_postfix({'PCK_img': (pck_img.max().item() / keypoints) * 100, 'PCK_bbox': (pck_bbox.max().item() / keypoints) * 100})
 
     pbar.close()
     return pck_img / keypoints, pck_bbox / keypoints
@@ -58,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False, help='Precalculate features and use them for faster evaluation')
     parser.add_argument('--cache_dir', type=str, default='cache', help='Directory to store cached features')
     parser.add_argument('--num_samples', type=int, default=None, help='Maximum number of samples to evaluate')
+    parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=False, help='Plot results')
 
     # Parse arguments
     args = parser.parse_args()
@@ -65,11 +69,12 @@ if __name__ == '__main__':
     dataset_config = args.dataset_config
     model_config = args.model_config
     device_type = args.device
-    num_samples = args.num_samples
     num_workers = args.num_workers
     pck_threshold = args.pck_threshold
     use_cache = args.use_cache
     cache_dir = args.cache_dir
+    num_samples = args.num_samples
+    plot = args.plot
 
     # Load model config
     model_config = read_model_config(model_config)[model_name]
@@ -80,6 +85,8 @@ if __name__ == '__main__':
     drop_last_batch = model_config.get('drop_last_batch', False)
     grad_enabled = model_config.get('grad_enabled', False)
     rescale_data = model_config.get('rescale_data', False)
+    image_range = model_config.get('image_range', (-1, 1))
+    layers = model_config.get('layers', None)
 
     # Load model
     model = load_model(model_name, model_config, device_type)
@@ -94,18 +101,23 @@ if __name__ == '__main__':
     dataset_config = read_dataset_config(dataset_config)
     
     # Print seperator
-    print(f"\n{'='*30} Evaluate {model_name} {'='*40}\n")
+    print(f"\n{'='*30} Evaluate {model_name} {'='*30}\n")
 
     # Evaluate
     for dataset_name in dataset_config:
         print(f"Dataset: {dataset_name}")
+
+        # Load dataset parameters
         config = dataset_config[dataset_name]
-        preprocess = Preprocessor(image_size, preprocess_image = not use_cache, rescale_data=rescale_data)
+        dataset_num_samples = config.get('num_samples', None)
+        random_sampling = config.get('random_sampling', False)
+
+        preprocess = Preprocessor(image_size, preprocess_image = not use_cache, image_range=image_range, rescale_data=rescale_data)
         dataset = load_dataset(dataset_name, config, preprocess)
 
         # Limit number of samples if specified
-        min_num_samples = min(filter(None, [num_samples, config.get('num_samples', None), len(dataset)]))
-        if config.get('random_sampling', False):
+        min_num_samples = min(filter(None, [num_samples, dataset_num_samples, len(dataset)]))
+        if random_sampling:
             torch.manual_seed(42)
             dataset.data = [dataset.data[i] for i in torch.randperm(len(dataset))]
         dataset.data = dataset.data[:min_num_samples]
@@ -138,6 +150,25 @@ if __name__ == '__main__':
                                      collate_fn=collate_fn)
 
         with torch.set_grad_enabled(grad_enabled):
-            pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, use_cache)
+            pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, layers, use_cache)
 
-        print(f"PCK_img: {pck_img * 100:.2f}, PCK_bbox: {pck_bbox * 100:.2f}\n")
+        if layers is None:
+            print(f"PCK_img: {pck_img[0] * 100:.2f}, PCK_bbox: {pck_bbox[0] * 100:.2f}")
+        else:
+            for l, i in enumerate(layers):
+                print(f"Layer {i}: PCK_img: {pck_img[l] * 100:.2f}, PCK_bbox: {pck_bbox[l] * 100:.2f}")
+
+        if plot:
+            if not os.path.exists('plots'):
+                os.mkdir('plots')
+
+            # Plot PCK values for each layer as bar chart
+            plt.figure()
+            plt.bar(layers, pck_img, label='PCK_img')
+            plt.bar(layers, pck_bbox, label='PCK_bbox')
+            plt.xlabel('Layer')
+            plt.ylabel('PCK')
+            plt.legend()
+            plt.savefig(f"plots/{model_name}_{dataset_name}.png")
+
+    print(f"\n{'='*30} Finished {'='*30}\n")

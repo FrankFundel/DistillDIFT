@@ -37,13 +37,13 @@ def load_model(model_name, config, device_type):
     if model_name == 'luo':
         return LuoModel(config['batch_size'], config['image_size'], device_type)
     if model_name == 'hedlin':
-        return HedlinModel(config['image_size'], device_type)
+        return HedlinModel(device_type)
     if model_name == 'tang':
-        return TangModel(config['image_size'], device_type)
+        return TangModel(device_type)
     if model_name == 'zhang':
-        return ZhangModel(config['batch_size'], config['image_size'], device_type)
+        return ZhangModel(device_type)
     
     if model_name.startswith('dino'):
-        return DINOModel(config['image_size'], config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
+        return DINOModel(config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
 
     raise ValueError('Model not recognized.')

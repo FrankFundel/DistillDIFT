@@ -60,20 +60,21 @@ def rescale_bbox(bbox, old_size, new_size):
     bbox = torch.multiply(bbox, torch.tensor([x_scale, y_scale, x_scale, y_scale]))
     return bbox
 
-def preprocess_image(image_pil, size):
+def preprocess_image(image_pil, size, range=[-1, 1]):
     """
     Convert PIL image to tensor and normalize to [-1, 1].
 
     Args:
         image_pil (PIL.Image): Image to preprocess
         size (tuple): (width, height)
+        range (tuple): (min, max)
 
     Returns:
-        torch.Tensor: [C, H, W] and range [-1, 1]
+        torch.Tensor: [C, H, W]
     """
     image_pil = image_pil.convert('RGB').resize(size, Image.BILINEAR)
     image = ToTensor()(image_pil) # [C, H, W] and range [0, 1]
-    image = (image - 0.5) * 2 # Normalize to [-1, 1]
+    image = image * (range[1] - range[0]) + range[0] # range [min, max]
     return image
 
 def preprocess_points(points, old_size, new_size):

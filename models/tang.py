@@ -6,8 +6,8 @@ class TangModel(CacheModel):
     """
     Model from Tang et al. (https://arxiv.org/abs/2306.03881)
     """
-    def __init__(self, image_size, device="cuda"):
-        super(TangModel, self).__init__(image_size, device)
+    def __init__(self, device="cuda"):
+        super(TangModel, self).__init__(device)
 
         self.dift = SDFeaturizer(device)
         self.ensemble_size = 8
@@ -19,19 +19,19 @@ class TangModel(CacheModel):
         features = self.dift.forward(image, prompt=prompt, ensemble_size=self.ensemble_size)
         return features
     
-    def compute_correspondence(self, sample):
-        assert len(sample['source_image']) == 1 and len(sample['target_image']) == 1
+    def compute_correspondence(self, batch):
+        assert len(batch['source_image']) == 1 and len(batch['target_image']) == 1
 
-        predicted_points = compute_correspondence(sample['source_image'],
-                                                  sample['target_image'],
-                                                  sample['source_points'][0].unsqueeze(0),
-                                                  sample['source_size'][0],
-                                                  sample['target_size'][0])
+        predicted_points = compute_correspondence(batch['source_image'],
+                                                  batch['target_image'],
+                                                  batch['source_points'][0].unsqueeze(0),
+                                                  batch['source_size'][0],
+                                                  batch['target_size'][0])
         return predicted_points.cpu()
     
-    def __call__(self, sample):
-        assert len(sample['source_image']) == 1 and len(sample['target_image']) == 1
+    def __call__(self, batch):
+        assert len(batch['source_image']) == 1 and len(batch['target_image']) == 1
 
-        sample['source_image'] = self.get_features(sample['source_image'], sample['category'])
-        sample['target_image'] = self.get_features(sample['target_image'], sample['category'])
-        return self.compute_correspondence(sample)
+        batch['source_image'] = self.get_features(batch['source_image'], batch['category'])
+        batch['target_image'] = self.get_features(batch['target_image'], batch['category'])
+        return self.compute_correspondence(batch)

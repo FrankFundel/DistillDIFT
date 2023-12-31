@@ -10,10 +10,8 @@ class ZhangModel(CacheModel):
     Model from Zhang et al. (https://arxiv.org/abs/2305.14334)
     Using own SD and DINO extractors
     """
-    def __init__(self, batch_size, image_size, device="cuda"):
-        super(ZhangModel, self).__init__(image_size, device)
-
-        self.batch_size = batch_size
+    def __init__(self, device="cuda"):
+        super(ZhangModel, self).__init__(device)
 
         self.pca_dim = 256
         self.layers = [3, 7, 11]
@@ -42,11 +40,11 @@ class ZhangModel(CacheModel):
 
         prompt = f'a photo of a {category[0]}'
         features = self.sd_extractor(image, prompt=prompt, layers=self.layers, steps=self.steps)
-        b, n, h, w = features[self.steps[0]][self.layers[-1]].shape
+        b, _, h, w = features[self.steps[0]][self.layers[-1]].shape
         diffusion_features = []
         for t in self.steps:
             for l in self.layers:
-                upsampled_feature = interpolate(features[t][l], size=w, mode="bilinear")
+                upsampled_feature = interpolate(features[t][l], size=(h, w), mode="bilinear")
                 diffusion_features.append(upsampled_feature)
         diffusion_features = torch.cat(diffusion_features, dim=1)
         diffusion_features = diffusion_features / diffusion_features.norm(dim=1, keepdim=True) # L2 normalize
@@ -57,44 +55,42 @@ class ZhangModel(CacheModel):
         dino_features = self.dino_extractor.get_intermediate_layers( 
             image, 1, return_class_token=False
         )[0].permute(0, 2, 1).reshape(b, -1, self.num_patches, self.num_patches)
-        dino_features = interpolate(dino_features, size=w, mode="bilinear")
+        dino_features = interpolate(dino_features, size=(h, w), mode="bilinear")
         dino_features = dino_features / dino_features.norm(dim=1, keepdim=True) # L2 normalize
 
         features = torch.cat([diffusion_features, dino_features], dim=1)
         return features
     
-    def compute_correspondence(self, sample):
-        assert len(sample['source_image']) == 1 and len(sample['target_image']) == 1
+    def compute_correspondence(self, batch):
+        assert len(batch['source_image']) == 1 and len(batch['target_image']) == 1
 
-        predicted_points = compute_correspondence(sample['source_image'],
-                                                  sample['target_image'],
-                                                  sample['source_points'][0].unsqueeze(0),
-                                                  sample['source_size'][0],
-                                                  sample['target_size'][0])
+        predicted_points = compute_correspondence(batch['source_image'],
+                                                  batch['target_image'],
+                                                  batch['source_points'][0].unsqueeze(0),
+                                                  batch['source_size'][0],
+                                                  batch['target_size'][0])
         return predicted_points.cpu()
 
-    def __call__(self, sample):
-        source_images = sample['source_image']
-        target_images = sample['target_image']
-        source_points = sample['source_points']
-        category = sample['category']
+    def __call__(self, batch):
+        source_images = batch['source_image']
+        target_images = batch['target_image']
+        category = batch['category'][0]
 
         # Prepare data
-        assert len(source_images) == 1 and len(target_images) == 1 and len(source_points) == 1
-        source_points = source_points[0].unsqueeze(0)
-        images = torch.cat([source_images, target_images]) #.type(torch.float16)
+        assert len(source_images) == 1 and len(target_images) == 1
+        images = torch.cat([source_images, target_images])
 
         # SD features
-        prompt = f'a photo of a {category[0]}'
+        prompt = f'a photo of a {category}'
         features = self.sd_extractor(images, prompt=prompt, layers=self.layers, steps=self.steps)
         
         # Aggregate diffusion features
-        b, n, h, w = features[self.steps[0]][self.layers[-1]].shape
+        b, _, h, w = features[self.steps[0]][self.layers[-1]].shape
         diffusion_features = []
         for t in self.steps:
             for l in self.layers:
                 reduced_feature = self.co_pca(features[t][l], n=self.pca_dim) # [2, n_components, H, W]
-                upsampled_feature = interpolate(reduced_feature, size=w, mode="bilinear")
+                upsampled_feature = interpolate(reduced_feature, size=(h, w), mode="bilinear")
                 diffusion_features.append(upsampled_feature)
         diffusion_features = torch.cat(diffusion_features, dim=1)
         diffusion_features = diffusion_features / diffusion_features.norm(dim=1, keepdim=True) # L2 normalize
@@ -105,12 +101,10 @@ class ZhangModel(CacheModel):
         dino_features = self.dino_extractor.get_intermediate_layers( 
             images, 1, return_class_token=False
         )[0].permute(0, 2, 1).reshape(b, -1, self.num_patches, self.num_patches)
-        dino_features = interpolate(dino_features, size=w, mode="bilinear")
+        dino_features = interpolate(dino_features, size=(h, w), mode="bilinear")
         dino_features = dino_features / dino_features.norm(dim=1, keepdim=True) # L2 normalize
 
-        features = torch.cat([diffusion_features, dino_features], dim=1)
-        source_features = features[:self.batch_size]
-        target_features = features[self.batch_size:]
-        
-        predicted_points = compute_correspondence(source_features, target_features, source_points, self.image_size)
-        return predicted_points.cpu()
+        features = torch.cat([diffusion_features, dino_features], dim=1) # concatenate normalized diffusion and dino features
+        batch['source_image'] = features[:len(batch['source_image'])]
+        batch['target_image'] = features[len(batch['target_image']):]
+        return self.compute_correspondence(batch)

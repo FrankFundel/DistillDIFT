@@ -2,36 +2,29 @@
 # See README.md for more details
 
 hedlin:
-  image_size:
-    - 512
-    - 512
+  image_size: [512, 512]
   batch_size: 1
   grad_enabled: true
+  image_range: [0, 1]
 
 tang:
-  image_size:
-    - 768
-    - 768
+  image_size: [768, 768]
   batch_size: 1
 
 zhang:
-  image_size:
-    - 960
-    - 960
+  image_size: [960, 960]
   batch_size: 1
 
 luo:
-  image_size:
-    - 224
-    - 224
+  image_size: [224, 224]
+  batch_size: 16
   drop_last_batch: true
 
 dinov1_s16:
-  image_size:
-    - 960
-    - 960
-  batch_size: 16
+  image_size: [960, 960]
+  batch_size: 64
   version: 1
   model_size: 's'
   patch_size: 16
-  layers: 11
+  image_range: [0, 1]
+  layers: [2, 4, 6, 9, 10, 11]

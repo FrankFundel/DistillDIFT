@@ -62,7 +62,7 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
             key = os.path.basename(image_path)
             if key not in keys:
                 image = Image.open(image_path)
-                image = preprocess_image(image, model.image_size)
+                image = dataset.preprocess.process_image(image)
                 samples.append((key, image, category))
                 keys.append(key)
         for sample in dataset.data:
@@ -77,14 +77,22 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
 
         # Get features and save to cache file
         with torch.no_grad():
-            for keys, images, categories in tqdm.tqdm(dataloader):
-                images = images.to(model.device)
+            for keys, image, category in tqdm.tqdm(dataloader):
+                image = image.to(model.device)
                 # Extend last batch if necessary
                 if len(keys) < batch_size:
-                    images = torch.cat([images, images[-1].repeat(batch_size-len(keys), 1, 1, 1)])
-                    categories = list(categories) + [categories[-1]] * (batch_size-len(keys))
+                    image = torch.cat([image, image[-1].repeat(batch_size-len(keys), 1, 1, 1)])
+                    category = list(category) + [category[-1]] * (batch_size-len(keys))
 
-                features = model.get_features(images, categories).cpu()
+                features = model.get_features(image, category)
+                
+                # Move features to CPU
+                # If features are [l, b, c, h, w], move to CPU separately
+                if type(features) is list:
+                    features = [[f.cpu() for f in l] for l in features]
+                else:
+                    features = features.cpu()
+                
                 for i, key in enumerate(keys):
                     f.create_dataset(key, data=features[i])
             
@@ -129,10 +137,14 @@ class Preprocessor:
         rescale_data (bool): Whether to rescale points and bounding boxes (also sets source_size and target_size to image_size)
     """
 
-    def __init__(self, image_size, preprocess_image=True, rescale_data=True):
+    def __init__(self, image_size, preprocess_image=True, image_range=[-1, 1], rescale_data=True):
         self.image_size = image_size
         self.preprocess_image = preprocess_image
+        self.image_range = image_range
         self.rescale_data = rescale_data
+
+    def process_image(self, image):
+        return preprocess_image(image, self.image_size, range=self.image_range)
 
     def __call__(self, sample):
         source_size = sample['source_size']
@@ -140,8 +152,8 @@ class Preprocessor:
 
         # Preprocess images
         if self.preprocess_image:
-            sample['source_image'] = preprocess_image(sample['source_image'], self.image_size)
-            sample['target_image'] = preprocess_image(sample['target_image'], self.image_size)
+            sample['source_image'] = self.process_image(sample['source_image'])
+            sample['target_image'] = self.process_image(sample['target_image'])
 
         # Rescale points and bounding boxes
         if self.rescale_data:

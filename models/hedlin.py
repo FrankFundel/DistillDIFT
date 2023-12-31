@@ -7,12 +7,10 @@ class HedlinModel(BaseModel):
     """
     Model from Hedlin et al. (https://arxiv.org/abs/2305.15581)
     """
-    def __init__(self, image_size=(512, 512), device="cuda", float16=False):
+    def __init__(self, device="cuda", float16=False):
         super(HedlinModel, self).__init__()
 
         self.device = device
-        self.image_size = image_size
-        self.upsample_res = image_size[0]
         self.float16 = float16
 
         # Default values from Hedlin et al.
@@ -29,20 +27,17 @@ class HedlinModel(BaseModel):
         self.model = load_ldm(self.device, 'CompVis/stable-diffusion-v1-4', float16=self.float16)
         self.model.enable_xformers_memory_efficient_attention()
     
-    def __call__(self, sample):
-        source_images = sample['source_image']
-        target_images = sample['target_image']
-        source_points = sample['source_points']
+    def __call__(self, batch):
+        source_images = batch['source_image']
+        target_images = batch['target_image']
+        source_points = batch['source_points']
 
         # Prepare inputs
         assert len(source_images) == 1 and len(target_images) == 1 and len(source_points) == 1
         source_images, target_images, source_points = source_images[0].unsqueeze(0), target_images[0].unsqueeze(0), source_points[0].unsqueeze(0)
         source_points = source_points[:, :, [1, 0]] # flip x and y axis again
         source_points = source_points.permute(0, 2, 1) # (1, 2, N)
-
-        # From [-1, 1] to range [0, 1]
-        source_images = (source_images + 1) / 2
-        target_images = (target_images + 1) / 2
+        upsample_res = source_images.shape[2]
 
         # Initialize
         est_keypoints = -1 * torch.ones_like(source_points)
@@ -51,13 +46,13 @@ class HedlinModel(BaseModel):
             all_maps = []
             for _ in range(self.num_opt_iterations):
                 # Optimize the text embeddings for the source point
-                context = optimize_prompt(self.model, source_images[0], source_points[0, :, j] / self.upsample_res,
+                context = optimize_prompt(self.model, source_images[0], source_points[0, :, j] / upsample_res,
                                           num_steps=self.num_steps, device=self.device, layers=self.layers, lr = self.lr,
-                                          upsample_res=self.upsample_res, noise_level=self.noise_level, sigma=self.sigma,
+                                          upsample_res=upsample_res, noise_level=self.noise_level, sigma=self.sigma,
                                           flip_prob=self.flip_prob, crop_percent=self.crop_percent)
                 
                 # Find the attention maps over the optimized text embeddings
-                attn_maps, _ = run_image_with_tokens_cropped(self.model, target_images[0], context, index=0, upsample_res=self.upsample_res,
+                attn_maps, _ = run_image_with_tokens_cropped(self.model, target_images[0], context, index=0, upsample_res=upsample_res,
                                                              noise_level=self.noise_level, layers=self.layers, device=self.device,
                                                              crop_percent=self.crop_percent, num_iterations=self.num_iterations,
                                                              image_mask = None)
@@ -65,12 +60,12 @@ class HedlinModel(BaseModel):
 
             all_maps = torch.stack(all_maps, dim=0)
             all_maps = torch.mean(all_maps, dim=0)
-            all_maps = torch.nn.Softmax(dim=-1)(all_maps.reshape(len(self.layers), self.upsample_res * self.upsample_res))
-            all_maps = all_maps.reshape(len(self.layers), self.upsample_res, self.upsample_res)
+            all_maps = torch.nn.Softmax(dim=-1)(all_maps.reshape(len(self.layers), upsample_res * upsample_res))
+            all_maps = all_maps.reshape(len(self.layers), upsample_res, upsample_res)
 
             # Take the argmax to find the corresponding location for the target image
             all_maps = torch.mean(all_maps, dim=0)
-            max_val = find_max_pixel_value(all_maps, img_size=self.upsample_res)
+            max_val = find_max_pixel_value(all_maps, img_size=upsample_res)
             est_keypoints[0, :, j] = (max_val+0.5)
 
         est_keypoints = est_keypoints.permute(0, 2, 1) # (1, N, 2)
