@@ -9,6 +9,7 @@ import torch.utils.data as data
 from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Preprocessor
 from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
+from utils.visualization import plot_results
 
 def evaluate(model, dataloader, pck_threshold, layers, use_cache=False):
     model.eval()
@@ -161,14 +162,6 @@ if __name__ == '__main__':
         if plot:
             if not os.path.exists('plots'):
                 os.mkdir('plots')
-
-            # Plot PCK values for each layer as bar chart
-            plt.figure()
-            plt.bar(layers, pck_img, label='PCK_img')
-            plt.bar(layers, pck_bbox, label='PCK_bbox')
-            plt.xlabel('Layer')
-            plt.ylabel('PCK')
-            plt.legend()
-            plt.savefig(f"plots/{model_name}_{dataset_name}.png")
+            plot_results(pck_img, pck_bbox, layers, f"plots/{model_name}_{dataset_name}.png")
 
     print(f"\n{'='*30} Finished {'='*30}\n")

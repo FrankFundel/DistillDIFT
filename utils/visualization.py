@@ -58,3 +58,41 @@ def display_image_pair(image_pair, show_bbox=False):
 
     # Show the plot
     plt.show()
+
+def plot_results(pck_img, pck_bbox, layers, save_path):
+    """
+    Plot the PCK values for each layer.
+
+    Args:
+        pck_img (torch.Tensor): PCK values for each image
+        pck_bbox (torch.Tensor): PCK values for each bounding box
+        layers (list, optional): List of layers to plot
+        save_path (str, optional): Path to save the plot
+    """
+
+    plt.figure(figsize=(10, 6))
+
+    # Set the width of the bars
+    bar_width = 0.35
+
+    # Set the positions of the bars on the x-axis
+    r1 = range(len(layers))
+    r2 = [x + bar_width for x in r1]
+
+    # Plot the bars for PCK_img and PCK_bbox next to each other
+    plt.bar(r1, pck_img, width=bar_width, color='blue', edgecolor='grey', label='PCK_img')
+    plt.bar(r2, pck_bbox, width=bar_width, color='orange', edgecolor='grey', label='PCK_bbox')
+
+    # Add xticks on the middle of the group bars
+    plt.xlabel('Layer', fontweight='bold')
+    plt.xticks([r + bar_width / 2 for r in range(len(layers))], layers)
+
+    # Set the y-axis label
+    plt.ylabel('PCK', fontweight='bold')
+
+    # Create legend & Show graphic
+    plt.legend()
+
+    # Save the plot to a file
+    plt.savefig(save_path)
+    plt.show()

@@ -3,8 +3,10 @@ Distilling the capability of large diffusion models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
 # ToDo
-- Implement layer- and timestep- wise PCK
-    - DiffusionModel returns nested list of timesteps, layers and predicted points
+- Save features layerwise as groups and evualate them per group
+- Save results in log file
+- Make plot more beautiful
+
 - DistributedDataParallel
 - Try not loading onto GPU when cached
 

@@ -87,9 +87,9 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
                 features = model.get_features(image, category)
                 
                 # Move features to CPU
-                # If features are [l, b, c, h, w], move to CPU separately
+                # If features are [b, l, c, h, w], move to CPU separately
                 if type(features) is list:
-                    features = [[f.cpu() for f in l] for l in features]
+                    features = [[l.cpu() for l in b] for b in features]
                 else:
                     features = features.cpu()
                 
