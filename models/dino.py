@@ -49,11 +49,11 @@ class DINOModel(CacheModel):
             pred = []
             for l in range(len(self.layers)):
                 pred.append(compute_correspondence(batch['source_image'][b][l].unsqueeze(0),
-                                                    batch['target_image'][b][l].unsqueeze(0),
-                                                    batch['source_points'][b].unsqueeze(0),
-                                                    batch['source_size'][b],
-                                                    batch['target_size'][b])
-                                                    .squeeze(0).cpu())
+                                                   batch['target_image'][b][l].unsqueeze(0),
+                                                   batch['source_points'][b].unsqueeze(0),
+                                                   batch['source_size'][b],
+                                                   batch['target_size'][b])
+                                                   .squeeze(0).cpu())
             predicted_points.append(pred)
         return predicted_points
 

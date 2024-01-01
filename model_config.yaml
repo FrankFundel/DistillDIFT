@@ -28,3 +28,12 @@ dinov1_s16:
   patch_size: 16
   image_range: [0, 1]
   layers: [2, 4, 6, 9, 10, 11]
+
+dinov2_b14:
+  image_size: [840, 840]
+  batch_size: 64
+  version: 2
+  model_size: 'b'
+  patch_size: 14
+  image_range: [0, 1]
+  layers: [2, 4, 6, 9, 10, 11]

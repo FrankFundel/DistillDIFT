@@ -4,9 +4,6 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 # ToDo
 - Save features layerwise as groups and evualate them per group
-- Save results in log file
-- Make plot more beautiful
-
 - DistributedDataParallel
 - Try not loading onto GPU when cached
 

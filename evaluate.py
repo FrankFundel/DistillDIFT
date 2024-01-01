@@ -2,7 +2,6 @@ import os
 import torch
 import tqdm
 import argparse
-from matplotlib import pyplot as plt
 
 import torch.utils.data as data
 
