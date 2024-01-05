@@ -1,5 +1,6 @@
 import torch
-from torchvision.transforms import ToTensor
+from torchvision.transforms import ToTensor, CenterCrop
+from torch.nn.functional import interpolate
 from PIL import Image
 
 def flip_points(points):
@@ -60,6 +61,16 @@ def rescale_bbox(bbox, old_size, new_size):
     bbox = torch.multiply(bbox, torch.tensor([x_scale, y_scale, x_scale, y_scale]))
     return bbox
 
+# TODO: remove
+class SquarePad:
+	def __call__(self, image):
+		h, w = image.shape[-2:]
+		max_wh = max(w, h)
+		hp = int((max_wh - w) / 2)
+		vp = int((max_wh - h) / 2)
+		padding = (hp, hp, vp, vp)
+		return torch.nn.functional.pad(image, padding, 'constant', 0.5)
+     
 def preprocess_image(image_pil, size, range=[-1, 1]):
     """
     Convert PIL image to tensor and normalize to [-1, 1].
@@ -72,8 +83,13 @@ def preprocess_image(image_pil, size, range=[-1, 1]):
     Returns:
         torch.Tensor: [C, H, W]
     """
-    image_pil = image_pil.convert('RGB').resize(size, Image.BILINEAR)
+    image_pil = image_pil.convert('RGB')#.resize(size, Image.BILINEAR)
     image = ToTensor()(image_pil) # [C, H, W] and range [0, 1]
+
+    # TODO: remove
+    image = SquarePad()(image)
+    image = interpolate(image.unsqueeze(0), size, mode="bilinear").squeeze(0)
+    
     image = image * (range[1] - range[0]) + range[0] # range [min, max]
     return image
 
@@ -204,9 +220,17 @@ def compute_correspondence(source_features, target_features, source_points, sour
     sw, sh = source_size
     tw, th = target_size
 
+    # TODO: remove
+    s_max_wh = max(sw, sh)
+    t_max_wh = max(tw, th)
+    source_features = interpolate(source_features, (s_max_wh, s_max_wh), mode="bilinear")
+    target_features = interpolate(target_features, (t_max_wh, t_max_wh), mode="bilinear")
+    source_features = CenterCrop((sh, sw))(source_features)
+    target_features = CenterCrop((th, tw))(target_features)
+
     # Resize features to match scale of points
-    source_features = torch.nn.functional.interpolate(source_features, (sh, sw), mode="bilinear")
-    target_features = torch.nn.functional.interpolate(target_features, (th, tw), mode="bilinear")
+    #source_features = interpolate(source_features, (sh, sw), mode="bilinear")
+    #target_features = interpolate(target_features, (th, tw), mode="bilinear")
 
     # Use source points to get features
     source_idxs = points_to_idxs(source_points, (sh, sw)) # [B, N]

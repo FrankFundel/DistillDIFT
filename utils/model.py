@@ -7,6 +7,9 @@ from models.zhang import ZhangModel
 
 from models.dino import DINO
 from models.zoedepth import ZoeDepth
+from models.gan import StyleGAN
+from models.mae import MAE
+from models.clip import CLIP
 
 def read_model_config(config_path):
     """
@@ -48,5 +51,11 @@ def load_model(model_name, config, device_type):
         return DINO(config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
     if model_name == 'zoedepth':
         return ZoeDepth(config['version'], config['layers'], device_type)
+    if model_name.startswith('gan'):
+        return StyleGAN(config['model_path'], config['layers'], device_type)
+    if model_name == 'mae':
+        return MAE(config['layers'], device_type)
+    if model_name == 'clip':
+        return CLIP(config['layers'], device_type)
 
     raise ValueError('Model not recognized.')

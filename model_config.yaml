@@ -61,4 +61,28 @@ zoedepth:
   image_range: [0, 1]
   layers: [0, 8, 10, 16, 23, 25, 27, 29]
 
+############ GAN ############
+
+gan_lafite:
+  image_size: [256, 256]
+  batch_size: 1
+  model_path : '/export/scratch/ra63des/lafite'
+  layers: null
+  image_range: [0, 1]
+  grad_enabled: true
+
 ############ MAE ############
+
+mae:
+  image_size: [512, 512]
+  batch_size: 32
+  image_range: [0, 1]
+  layers: [0, 8, 10]
+
+############ OpenCLIP ############
+
+clip:
+  image_size: [224, 224]
+  batch_size: 64
+  image_range: [0, 1]
+  layers: [11] #[2, 4, 6, 9, 10, 11]
