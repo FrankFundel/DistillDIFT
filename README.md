@@ -3,9 +3,8 @@ Distilling the capability of large diffusion models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
 # ToDo
-- Save features layerwise as groups and evualate them per group
-- DistributedDataParallel
-- Try not loading onto GPU when cached
+- Let use_cache be defined by model class
+- Evaluate layers in parallel (one dataloader per layer, where cache_dataset returns a list of datasets)
 
 # Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences

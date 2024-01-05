@@ -98,7 +98,6 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
                         g.create_dataset(k, data=features[i])
 
                 if type(features) is list: # (l, b, c, h, w)
-                    print(len(features), features[0].shape)
                     for l, layer in enumerate(layers):
                         save_features(layer, features[l].cpu())
                 else: # (b, c, h, w)

@@ -104,10 +104,8 @@ if __name__ == '__main__':
     # Load model
     model = load_model(model_name, model_config, device_type)
 
+    # Move model to device
     device = torch.device(device_type)
-    if device.type == 'cuda' and torch.cuda.device_count() > 1:
-        model = torch.nn.DataParallel(model)
-        print(f"Using {torch.cuda.device_count()} GPUs")
     model.to(device)
 
     # Load dataset config
