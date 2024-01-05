@@ -56,7 +56,10 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
 
     # Filter out keys already in cache and preprocess images
     with h5py.File(cache_path, 'a') as f:
-        keys = list(f.keys())
+        # If the first item is a group, use its keys
+        item = next(iter(f.items()), [None, {}])[1]
+        keys = list(item.keys() if isinstance(item, h5py.Group) else f.keys())
+        
         samples = []
         def process(image_path, category):
             key = os.path.basename(image_path)
@@ -75,26 +78,31 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
                                      shuffle=False,
                                      num_workers=num_workers)
 
+        # Create group for each layer if it doesn't exist
+        if hasattr(model, 'layers') and model.layers is not None:
+            layers = [f.create_group(str(l)) if str(l) not in f else f[str(l)] for l in model.layers]
+
         # Get features and save to cache file
         with torch.no_grad():
-            for keys, image, category in tqdm.tqdm(dataloader):
+            for key, image, category in tqdm.tqdm(dataloader):
                 image = image.to(model.device)
                 # Extend last batch if necessary
-                if len(keys) < batch_size:
-                    image = torch.cat([image, image[-1].repeat(batch_size-len(keys), 1, 1, 1)])
-                    category = list(category) + [category[-1]] * (batch_size-len(keys))
+                if len(key) < batch_size:
+                    image = torch.cat([image, image[-1].repeat(batch_size-len(key), 1, 1, 1)])
+                    category = list(category) + [category[-1]] * (batch_size-len(key))
 
                 features = model.get_features(image, category)
                 
-                # Move features to CPU
-                # If features are [b, l, c, h, w], move to CPU separately
-                if type(features) is list:
-                    features = [[l.cpu() for l in b] for b in features]
-                else:
-                    features = features.cpu()
-                
-                for i, key in enumerate(keys):
-                    f.create_dataset(key, data=features[i])
+                def save_features(g, features):
+                    for i, k in enumerate(key):
+                        g.create_dataset(k, data=features[i])
+
+                if type(features) is list: # (l, b, c, h, w)
+                    print(len(features), features[0].shape)
+                    for l, layer in enumerate(layers):
+                        save_features(layer, features[l].cpu())
+                else: # (b, c, h, w)
+                    save_features(f, features.cpu())
             
     print("Caching complete.")
     return CacheDataset(dataset, cache_path)
@@ -107,7 +115,11 @@ class CacheDataset(CorrespondenceDataset):
     def __init__(self, dataset, cache_path):
         self.data = dataset.data
         self.preprocess = dataset.preprocess
-        self.cache = h5py.File(cache_path, 'r')
+        self.file = h5py.File(cache_path, 'r')
+        self.cache = self.file
+
+    def set_layer(self, layer):
+        self.cache = self.file[str(layer)]
 
     def __getitem__(self, idx):
         sample = copy.deepcopy(self.data[idx]) # Prevent memory leak

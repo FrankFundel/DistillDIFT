@@ -10,14 +10,13 @@ from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 from utils.visualization import plot_results
 
-def evaluate(model, dataloader, pck_threshold, layers, use_cache=False):
+def eval(model, dataloader, pck_threshold, use_cache=False):
     model.eval()
 
     pbar = tqdm.tqdm(total=len(dataloader))
 
-    num_layers = len(layers) if layers is not None else 1
-    pck_img = torch.zeros(num_layers)
-    pck_bbox = torch.zeros(num_layers)
+    pck_img = 0
+    pck_bbox = 0
     keypoints = 0
     
     for batch in dataloader:
@@ -37,18 +36,32 @@ def evaluate(model, dataloader, pck_threshold, layers, use_cache=False):
         target_bbox = batch['target_bbox']
         target_size = batch['target_size']
         for b in range(batch_size):
-            for l in range(len(layers)) if layers is not None else [None]:
-                pck_img[l] += compute_pck_img(predicted_points[b][l], target_points[b], target_size[b], pck_threshold)
-                pck_bbox[l] += compute_pck_bbox(predicted_points[b][l], target_points[b], target_bbox[b], pck_threshold)
+            pck_img += compute_pck_img(predicted_points[b], target_points[b], target_size[b], pck_threshold)
+            pck_bbox += compute_pck_bbox(predicted_points[b], target_points[b], target_bbox[b], pck_threshold)
             keypoints += len(target_points[b])
 
         # Update progress bar
         pbar.update(1)
-        pbar.set_postfix({'PCK_img': (pck_img.max().item() / keypoints) * 100, 'PCK_bbox': (pck_bbox.max().item() / keypoints) * 100})
+        pbar.set_postfix({'PCK_img': (pck_img / keypoints) * 100, 'PCK_bbox': (pck_bbox / keypoints) * 100})
 
     pbar.close()
+
+    print(f"PCK_img: {(pck_img / keypoints) * 100:.2f}, PCK_bbox: {(pck_bbox / keypoints) * 100:.2f}")
     return pck_img / keypoints, pck_bbox / keypoints
 
+def evaluate(model, dataloader, pck_threshold, layers=None, use_cache=False):
+    if layers is None:
+        return eval(model, dataloader, pck_threshold, use_cache)
+
+    pck_img = []
+    pck_bbox = []
+    for l in layers:
+        print(f"Layer {l}:")
+        dataloader.dataset.set_layer(l)
+        pck_img_l, pck_bbox_l = eval(model, dataloader, pck_threshold, use_cache)
+        pck_img.append(pck_img_l)
+        pck_bbox.append(pck_bbox_l)
+    return pck_img, pck_bbox
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -152,13 +165,7 @@ if __name__ == '__main__':
         with torch.set_grad_enabled(grad_enabled):
             pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, layers, use_cache)
 
-        if layers is None:
-            print(f"PCK_img: {pck_img[0] * 100:.2f}, PCK_bbox: {pck_bbox[0] * 100:.2f}")
-        else:
-            for l, i in enumerate(layers):
-                print(f"Layer {i}: PCK_img: {pck_img[l] * 100:.2f}, PCK_bbox: {pck_bbox[l] * 100:.2f}")
-
-        if plot:
+        if plot and layers is not None:
             if not os.path.exists('plots'):
                 os.mkdir('plots')
             plot_results(pck_img, pck_bbox, layers, f"plots/{model_name}_{dataset_name}.png")

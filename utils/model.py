@@ -5,7 +5,8 @@ from models.hedlin import HedlinModel
 from models.tang import TangModel
 from models.zhang import ZhangModel
 
-from models.dino import DINOModel
+from models.dino import DINO
+from models.zoedepth import ZoeDepth
 
 def read_model_config(config_path):
     """
@@ -44,6 +45,8 @@ def load_model(model_name, config, device_type):
         return ZhangModel(device_type)
     
     if model_name.startswith('dino'):
-        return DINOModel(config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
+        return DINO(config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
+    if model_name == 'zoedepth':
+        return ZoeDepth(config['version'], config['layers'], device_type)
 
     raise ValueError('Model not recognized.')
