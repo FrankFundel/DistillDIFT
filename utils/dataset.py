@@ -47,7 +47,7 @@ def load_dataset(dataset_name, config, preprocess=None):
     
     raise ValueError('Dataset not recognized.')
 
-def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
+def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers):
     """
     Cache features from dataset.
     """
@@ -55,7 +55,7 @@ def cache_dataset(model, dataset, cache_path, batch_size, num_workers):
     print(f"Caching features to {cache_path}")
 
     # Filter out keys already in cache and preprocess images
-    with h5py.File(cache_path, 'a') as f:
+    with h5py.File(cache_path, 'w' if reset_cache else 'a') as f:
         # If the first item is a group, use its keys
         item = next(iter(f.items()), [None, {}])[1]
         keys = list(item.keys() if isinstance(item, h5py.Group) else f.keys())

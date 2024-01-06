@@ -2,6 +2,12 @@ import torch
 from .base import CacheModel
 from utils.correspondence import compute_correspondence
 
+import sys
+sys.path.append('./thirdparty/mae')
+
+import models_mae
+from torchvision.transforms import Normalize
+
 class MAE(CacheModel):
     """
     MAE model.
@@ -10,22 +16,31 @@ class MAE(CacheModel):
         layers (list): Layers to use
         device (str): Device to run model on
     """
-    def __init__(self, version, layers, device="cuda"):
+    def __init__(self, model_path, arch, patch_size, layers, device="cuda"):
         super(MAE, self).__init__(device)
         
-        self.patch_size = 16
+        self.patch_size = patch_size
         self.layers = layers
-        self.extractor = torch.hub.load("isl-org/ZoeDepth", 'ZoeD_' + version, pretrained=True).to(device)
-        self.extractor.eval()
+        
+        # Load model
+        self.extractor = getattr(models_mae, arch)()
+        checkpoint = torch.load(model_path, map_location='cpu')
+        self.extractor.load_state_dict(checkpoint['model'], strict=False)
 
         # Set hooks at the specified layers
         layer_counter = 0
         self.features = {}
 
-        # BeiT encoder layers 0-23
-        for block in self.extractor.core.core.pretrained.model.blocks:
+        # Encoder blocks 0-23
+        for block in self.extractor.blocks:
             if layer_counter in self.layers:
                 block.register_forward_hook(self.save_fn(layer_counter))
+            layer_counter += 1
+
+        # Decoder layers 24-31
+        for layer in self.extractor.decoder_blocks:
+            if layer_counter in self.layers:
+                layer.register_forward_hook(self.save_fn(layer_counter))
             layer_counter += 1
 
     def save_fn(self, layer_idx):
@@ -35,7 +50,8 @@ class MAE(CacheModel):
     
     def get_features(self, image, category=None):
         self.features = {}
-        _ = self.extractor.infer(image)
+        image = Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))(image) # important
+        _ = self.extractor(image, mask_ratio=0.0)
         b = image.shape[0]
         h = image.shape[2] // self.patch_size
         w = image.shape[3] // self.patch_size

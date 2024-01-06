@@ -30,6 +30,7 @@ dinov1_s8:
   version: 1
   model_size: 's'
   patch_size: 8
+  registers: false
   image_range: [0, 1]
   layers: [2, 4, 6, 9, 10, 11]
 
@@ -39,6 +40,7 @@ dinov2_b14:
   version: 2
   model_size: 'b'
   patch_size: 14
+  registers: false
   image_range: [0, 1]
   layers: [2, 4, 6, 9, 10, 11]
 
@@ -51,6 +53,38 @@ dinov2_b14_reg:
   registers: true
   image_range: [0, 1]
   layers: [2, 4, 6, 9, 10, 11]
+
+dinov2_large:
+  image_size: [840, 840]
+  batch_size: 64
+  version: 2
+  model_size: 'l'
+  patch_size: 14
+  registers: false
+  image_range: [0, 1]
+  layers: [23]
+
+############ OpenCLIP ############
+
+clip:
+  image_size: [336, 336]
+  batch_size: 64
+  image_range: [0, 1]
+  layers: [2, 4, 6, 9, 10, 11]
+
+############ MAE ############
+
+# download weights using the following command:
+# wget https://dl.fbaipublicfiles.com/mae/visualize/mae_visualize_vit_large.pth
+
+mae:
+  image_size: [224, 224]
+  batch_size: 32
+  model_path : '/export/home/ra63des/.cache/mae_visualize_vit_large.pth'
+  arch: 'mae_vit_large_patch16' # mae_vit_large_patch16, mae_vit_huge_patch14
+  patch_size: 16 # 14, 16
+  image_range: [0, 1]
+  layers: [3, 8, 13, 18, 23, 24, 26, 29, 31]
 
 ############ Depth ############
 
@@ -70,19 +104,3 @@ gan_lafite:
   layers: null
   image_range: [0, 1]
   grad_enabled: true
-
-############ MAE ############
-
-mae:
-  image_size: [512, 512]
-  batch_size: 32
-  image_range: [0, 1]
-  layers: [0, 8, 10]
-
-############ OpenCLIP ############
-
-clip:
-  image_size: [224, 224]
-  batch_size: 64
-  image_range: [0, 1]
-  layers: [11] #[2, 4, 6, 9, 10, 11]

@@ -54,7 +54,7 @@ def load_model(model_name, config, device_type):
     if model_name.startswith('gan'):
         return StyleGAN(config['model_path'], config['layers'], device_type)
     if model_name == 'mae':
-        return MAE(config['layers'], device_type)
+        return MAE(config['model_path'], config['arch'], config['patch_size'], config['layers'], device_type)
     if model_name == 'clip':
         return CLIP(config['layers'], device_type)
 

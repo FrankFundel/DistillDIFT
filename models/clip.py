@@ -7,7 +7,7 @@ from torchvision.transforms import Normalize
 
 class CLIP(CacheModel):
     """
-    OpenCLIP ViT-H-14 model.
+    CLIP model (ViT-L-14-336 by OpenAI).
 
     Args:
         layers (list): Layers to use
@@ -18,7 +18,7 @@ class CLIP(CacheModel):
         
         self.patch_size = 14
         self.layers = layers
-        self.extractor, _, preprocess = open_clip.create_model_and_transforms('ViT-H-14', pretrained='laion2b_s32b_b79k')
+        self.extractor, _, preprocess = open_clip.create_model_and_transforms('ViT-L-14-336', pretrained='openai')
         self.extractor.eval()
 
         # Set hooks at the specified layers
@@ -38,6 +38,7 @@ class CLIP(CacheModel):
     
     def get_features(self, image, category=None):
         self.features = {}
+        image = Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))(image) # important
         _ = self.extractor.encode_image(image)
         b = image.shape[0]
         h = image.shape[2] // self.patch_size

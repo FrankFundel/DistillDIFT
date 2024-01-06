@@ -73,6 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
     parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False, help='Precalculate features and use them for faster evaluation')
     parser.add_argument('--cache_dir', type=str, default='cache', help='Directory to store cached features')
+    parser.add_argument('--reset_cache', action=argparse.BooleanOptionalAction, default=False, help='Reset cache')
     parser.add_argument('--num_samples', type=int, default=None, help='Maximum number of samples to evaluate')
     parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=False, help='Plot results')
 
@@ -86,6 +87,7 @@ if __name__ == '__main__':
     pck_threshold = args.pck_threshold
     use_cache = args.use_cache
     cache_dir = args.cache_dir
+    reset_cache = args.reset_cache
     num_samples = args.num_samples
     plot = args.plot
 
@@ -138,7 +140,7 @@ if __name__ == '__main__':
             if not os.path.exists(cache_dir):
                 os.mkdir(cache_dir)
             cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
-            dataset = cache_dataset(model, dataset, cache_path, batch_size, num_workers)
+            dataset = cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers)
 
         def collate_fn(batch):
             return {
