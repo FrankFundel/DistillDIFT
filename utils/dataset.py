@@ -68,6 +68,7 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
                 image = dataset.preprocess.process_image(image)
                 samples.append((key, image, category))
                 keys.append(key)
+        
         for sample in dataset.data:
             process(sample['source_image_path'], sample['category'])
             process(sample['target_image_path'], sample['category'])

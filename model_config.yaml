@@ -45,6 +45,13 @@ diff_sdxl:
   layers: [0, 1, 2, 4, 5, 7, 9, 11]
   step: 201 #101
 
+diff_lcm:
+  image_size: [1024, 1024]
+  batch_size: 16
+  model: "latent-consistency/lcm-sdxl"
+  layers: [1] #[0, 1, 2, 4, 5, 7, 9, 11]
+  step: 64
+
 ############ DINO ############
 
 dinov1_s8:

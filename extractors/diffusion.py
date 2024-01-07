@@ -312,9 +312,14 @@ class SDExtractor:
     def __init__(self, device, model='stabilityai/stable-diffusion-2-1'):
         self.device = device
 
-        unet = CustomUNet2DConditionModel.from_pretrained(model, subfolder="unet")
-        self.pipe = StableDiffusionXLPipeline.from_pretrained(model, unet=unet, safety_checker=None)
-        self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
+        if "xl" in model:
+            pipe_class = StableDiffusionXLPipeline
+        else:
+            pipe_class = StableDiffusionPipeline
+
+        unet = CustomUNet2DConditionModel.from_pretrained(model)#, subfolder="unet")
+        self.pipe = pipe_class.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", unet=unet, safety_checker=None)
+        self.pipe.scheduler = DDIMScheduler.from_config(self.pipe.scheduler.config) #.from_pretrained(model, subfolder="scheduler")
         self.pipe.vae.decoder = None
         self.pipe = self.pipe.to(device)
 
