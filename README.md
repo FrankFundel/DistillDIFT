@@ -4,6 +4,7 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 # ToDo
 - Let use_cache be defined by model class
+- num_samples in cache mode not working
 - Evaluate layers in parallel (one dataloader per layer, where cache_dataset returns a list of datasets)
 
 # Related Work

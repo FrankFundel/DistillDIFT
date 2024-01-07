@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 from diffusers.models.unet_2d_blocks import UpBlock2D
 from diffusers.models.unet_2d_blocks import CrossAttnUpBlock2D
 from diffusers.models.unet_2d_condition import UNet2DConditionModel
-from diffusers import DDIMScheduler, StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, DDIMScheduler
 from diffusers.utils.import_utils import is_torch_version
 
 def custom_forward_UpBlock2D(self,
@@ -272,40 +272,40 @@ class CustomUNet2DConditionModel(UNet2DConditionModel):
                 if layer_counter in feature_indices:
                     features[layer_counter] = layer_sample
                 layer_counter += 1
-        
+
         return features
 
 # This is used to perform a single timestep of the diffusion model, instead of the whole diffusion process.
+# The normal StableDiffusionPipeline only takes a prompt and a number of timesteps as input.
 # This way, steps that are not needed can be skipped, which saves a lot of time.
-class OneStepSDPipeline(StableDiffusionPipeline):
-    @torch.no_grad()
-    def __call__(
-        self,
-        img_tensor,
-        t,
-        feature_indices=None,
-        negative_prompt: Optional[Union[str, List[str]]] = None,
-        generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
-        prompt_embeds: Optional[torch.FloatTensor] = None,
-        callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
-        callback_steps: int = 1,
-        cross_attention_kwargs: Optional[Dict[str, Any]] = None
-    ):
-        device = self._execution_device
-        latents = self.vae.encode(img_tensor).latent_dist.sample() * self.vae.config.scaling_factor
-        t = torch.tensor(t, dtype=torch.long, device=device)
-        noise = torch.randn_like(latents).to(device)
-        latents_noisy = self.scheduler.add_noise(latents, noise, t)
-        unet_args = {
-            'sample': latents_noisy,
-            'timestep': t,
-            'encoder_hidden_states': prompt_embeds,
-            'cross_attention_kwargs': cross_attention_kwargs
-        }
-        if feature_indices is not None:
-            unet_args['feature_indices'] = feature_indices
-        unet_output = self.unet(**unet_args)
-        return unet_output
+@torch.no_grad()
+def custom_forward_OneStepSDPipeline(
+    self,
+    img_tensor,
+    t,
+    feature_indices=None,
+    negative_prompt: Optional[Union[str, List[str]]] = None,
+    generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
+    prompt_embeds: Optional[torch.FloatTensor] = None,
+    callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
+    callback_steps: int = 1,
+    cross_attention_kwargs: Optional[Dict[str, Any]] = None
+):
+    device = self._execution_device
+    latents = self.vae.encode(img_tensor).latent_dist.sample() * self.vae.config.scaling_factor
+    t = torch.tensor(t, dtype=torch.long, device=device)
+    noise = torch.randn_like(latents).to(device)
+    latents_noisy = self.scheduler.add_noise(latents, noise, t)
+    unet_args = {
+        'sample': latents_noisy,
+        'timestep': t,
+        'encoder_hidden_states': prompt_embeds,
+        'cross_attention_kwargs': cross_attention_kwargs
+    }
+    if feature_indices is not None:
+        unet_args['feature_indices'] = feature_indices
+    unet_output = self.unet(**unet_args)
+    return unet_output
 
 
 class SDExtractor:
@@ -313,7 +313,7 @@ class SDExtractor:
         self.device = device
 
         unet = CustomUNet2DConditionModel.from_pretrained(model, subfolder="unet")
-        self.pipe = OneStepSDPipeline.from_pretrained(model, unet=unet, safety_checker=None)
+        self.pipe = StableDiffusionXLPipeline.from_pretrained(model, unet=unet, safety_checker=None)
         self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
         self.pipe.vae.decoder = None
         self.pipe = self.pipe.to(device)
@@ -366,12 +366,12 @@ class SDExtractor:
         """
         
         # Embed prompt
-        prompt_embeddings, _ = self.pipe.encode_prompt(
+        prompt_embeddings = self.pipe.encode_prompt(
             prompt=prompt,
             device=self.device,
             num_images_per_prompt=1,
             do_classifier_free_guidance=False
-        ) # [1, 77, dim]
+        )[0] # [1, 77, dim]
         
         # Check prompt
         if images.shape[0] != prompt_embeddings.shape[0]:
@@ -386,7 +386,8 @@ class SDExtractor:
         # Extract features
         features = {}
         for t in steps:
-            features[t] = self.pipe(
+            features[t] = custom_forward_OneStepSDPipeline(
+                self=self.pipe,
                 img_tensor=images,
                 t=t,
                 feature_indices=layers,
@@ -407,7 +408,7 @@ class SDHookExtractor:
         self.device = device
 
         unet = UNet2DConditionModel.from_pretrained(model, subfolder="unet")
-        self.pipe = OneStepSDPipeline.from_pretrained(model, unet=unet, safety_checker=None)
+        self.pipe = StableDiffusionPipeline.from_pretrained(model, unet=unet, safety_checker=None)
         self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
         self.pipe.vae.decoder = None
         self.pipe = self.pipe.to(device)
@@ -440,7 +441,7 @@ class SDHookExtractor:
                     layer_counter += 1
 
         # Embed prompt
-        prompt_embeddings = self.pipe._encode_prompt(
+        prompt_embeddings = self.pipe.encode_prompt(
             prompt=prompt,
             device=self.device,
             num_images_per_prompt=1,

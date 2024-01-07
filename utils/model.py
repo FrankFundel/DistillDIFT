@@ -5,6 +5,7 @@ from models.hedlin import HedlinModel
 from models.tang import TangModel
 from models.zhang import ZhangModel
 
+from models.diffusion import Diffusion
 from models.dino import DINO
 from models.zoedepth import ZoeDepth
 from models.gan import StyleGAN
@@ -47,6 +48,8 @@ def load_model(model_name, config, device_type):
     if model_name == 'zhang':
         return ZhangModel(device_type)
     
+    if model_name.startswith('diff'):
+        return Diffusion(config['model'], config['layers'], config['step'], device_type)
     if model_name.startswith('dino'):
         return DINO(config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
     if model_name == 'zoedepth':

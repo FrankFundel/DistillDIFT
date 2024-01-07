@@ -4,28 +4,42 @@ from .base import BaseModel
 from utils.correspondence import compute_correspondence
 from extractors.diffusion import SDExtractor
 
-class DiffusionModel(BaseModel):
+class Diffusion(BaseModel):
     """
     Diffusion model.
     """
-    def __init__(self, image_size, device="cuda"):
-        super(DiffusionModel, self).__init__()
+    def __init__(self, model, layers, step, device="cuda"):
+        super(Diffusion, self).__init__(device)
         
-        self.image_size = image_size
-        self.device = device
+        self.model = model
+        self.layers = layers
+        self.step = step
 
-        self.extractor = SDExtractor(device=device)
+        self.extractor = SDExtractor(device, model)
 
     def get_features(self, image, category):
-        pass
+        prompt = [f'a photo of a {c}' for c in category]
+        features = self.extractor(image, prompt=prompt, layers=self.layers, steps=[self.step])[self.step]
+        return list(features.values())
     
-    def compute_correspondence(self, sample):
-        pass
+    def compute_correspondence(self, batch):
+        predicted_points = []
+        batch_size = len(batch['source_image'])
+        for b in range(batch_size):
+            predicted_points.append(compute_correspondence(batch['source_image'][b].unsqueeze(0),
+                                                           batch['target_image'][b].unsqueeze(0),
+                                                           batch['source_points'][b].unsqueeze(0),
+                                                           batch['source_size'][b],
+                                                           batch['target_size'][b])
+                                                           .squeeze(0).cpu())
+        return predicted_points
 
-    def __call__(self, sample):
-        # Prepare data
-        source_images = sample['source_image']
-        target_images = sample['target_image']
-        source_points = sample['source_points']
-        category = sample['category']
-        pass
+    def __call__(self, batch):
+        assert len(self.layers) == 1
+        images = torch.cat([batch['source_image'], batch['target_image']])
+
+        features = self.get_features(images)[0]
+        batch['source_image'] = features[:len(batch['source_image'])]
+        batch['target_image'] = features[len(batch['target_image']):]
+        
+        return self.compute_correspondence(batch)

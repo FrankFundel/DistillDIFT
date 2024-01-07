@@ -32,7 +32,6 @@ class DINO(CacheModel):
                 model += '_reg'
         self.extractor = torch.hub.load(repo, model).to(device)
         self.extractor.eval()
-        print(self.extractor)
 
     def get_features(self, image, category=None):
         b = image.shape[0]
