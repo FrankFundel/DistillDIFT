@@ -39,18 +39,25 @@ diff_sd2-1:
   step: 261
 
 diff_sdxl:
-  image_size: [1024, 1024] #[768, 768]
-  batch_size: 16 #32
+  image_size: [768, 768] # [1024, 1024], [768, 768]
+  batch_size: 32 # 16, 32
   model: "stabilityai/stable-diffusion-xl-base-1.0"
-  layers: [0, 1, 2, 4, 5, 7, 9, 11]
-  step: 201 #101
+  layers: [1] #[0, 1, 2, 4, 5, 7, 9, 11]
+  step: 101 # 201, 101
 
 diff_lcm:
-  image_size: [1024, 1024]
-  batch_size: 16
+  image_size: [1024, 1024] #[768, 768]
+  batch_size: 16 #32
   model: "latent-consistency/lcm-sdxl"
   layers: [1] #[0, 1, 2, 4, 5, 7, 9, 11]
   step: 64
+
+diff_add:
+  image_size: [768, 768]
+  batch_size: 32
+  model: "stabilityai/sdxl-turbo"
+  layers: [1]
+  step: 101
 
 ############ DINO ############
 

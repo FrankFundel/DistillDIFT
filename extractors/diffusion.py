@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 from diffusers.models.unet_2d_blocks import UpBlock2D
 from diffusers.models.unet_2d_blocks import CrossAttnUpBlock2D
 from diffusers.models.unet_2d_condition import UNet2DConditionModel
-from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, DDIMScheduler
+from diffusers import StableDiffusionPipeline, AutoPipelineForText2Image, DDIMScheduler
 from diffusers.utils.import_utils import is_torch_version
 
 def custom_forward_UpBlock2D(self,
@@ -312,14 +312,9 @@ class SDExtractor:
     def __init__(self, device, model='stabilityai/stable-diffusion-2-1'):
         self.device = device
 
-        if "xl" in model:
-            pipe_class = StableDiffusionXLPipeline
-        else:
-            pipe_class = StableDiffusionPipeline
-
-        unet = CustomUNet2DConditionModel.from_pretrained(model)#, subfolder="unet")
-        self.pipe = pipe_class.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", unet=unet, safety_checker=None)
-        self.pipe.scheduler = DDIMScheduler.from_config(self.pipe.scheduler.config) #.from_pretrained(model, subfolder="scheduler")
+        unet = CustomUNet2DConditionModel.from_pretrained(model, subfolder="unet")
+        self.pipe = AutoPipelineForText2Image.from_pretrained(model, unet=unet, safety_checker=None)
+        self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
         self.pipe.vae.decoder = None
         self.pipe = self.pipe.to(device)
 
