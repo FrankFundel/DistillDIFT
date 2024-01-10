@@ -2,17 +2,19 @@
 Distilling the capability of large diffusion models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
-# ToDo
+## ToDo
 - Let use_cache be defined by model class
 - Evaluate layers in parallel (one dataloader per layer, where cache_dataset returns a list of datasets)
 
-# Related Work
+## Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
 2. Tang et al.: https://github.com/Tsingularity/dift
 3. Zhang et al.: https://github.com/Junyi42/sd-dino
 4. Luo et al.: https://github.com/diffusion-hyperfeatures/diffusion_hyperfeatures
 
-# Evaluation
+## Evaluation
+
+### Tutorial
 
 1. Download datasets
     - SPair-71k: `bash datasets/download_spair.sh`
@@ -39,15 +41,15 @@ We provide a well-written and documented code base for semantic correspondence, 
     - For all other models we use `diffusers==0.24.0`
     - When using cache, remember to delete the cache file if you made changes on the model, else the features will stay the same
 
-# Training
+## Training
 
 _To be continued..._
 
-# Feature Extractors
+## Distilled models
 
 _To be continued..._
 
-# Demos
+## Demos
 
 - Dataset exploration: `datasets/explore.ipynb`
 - Evaluation demo: `eval_demo.ipynb`

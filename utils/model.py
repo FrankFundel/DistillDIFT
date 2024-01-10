@@ -11,6 +11,7 @@ from models.zoedepth import ZoeDepth
 from models.gan import StyleGAN
 from models.mae import MAE
 from models.clip import CLIP
+from models.combination import Combination
 
 def read_model_config(config_path):
     """
@@ -60,5 +61,10 @@ def load_model(model_name, config, device_type):
         return MAE(config['model_path'], config['arch'], config['patch_size'], config['layers'], device_type)
     if model_name == 'clip':
         return CLIP(config['layers'], device_type)
+    
+    if model_name.startswith('combination'):
+        return Combination(load_model(config['model1'], config['model1_config'], device_type),
+                           load_model(config['model2'], config['model2_config'], device_type),
+                           device_type)
 
     raise ValueError('Model not recognized.')

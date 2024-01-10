@@ -1,10 +1,10 @@
 import torch
 
-from .base import BaseModel
+from .base import CacheModel
 from utils.correspondence import compute_correspondence
 from extractors.diffusion import SDExtractor
 
-class Diffusion(BaseModel):
+class Diffusion(CacheModel):
     """
     Diffusion model.
     """

@@ -141,3 +141,22 @@ gan_lafite:
   layers: null
   image_range: [0, 1]
   grad_enabled: true
+
+############ Combination ############
+
+combination:
+  image_size: [980, 980]
+  batch_size: 16
+  image_range: [0, 1]
+  model1: 'diff_add'
+  model2: 'dinov2_b14_reg'
+  model1_config:
+    model: "stabilityai/sdxl-turbo"
+    layers: [1] #[1, 4, 7]
+    step: 101
+  model2_config:
+    version: 2
+    model_size: 'b'
+    patch_size: 14
+    registers: true
+    layers: [11]
