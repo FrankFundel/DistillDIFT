@@ -4,7 +4,9 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 ## ToDo
 - Let use_cache be defined by model class
+- Move compute_correspondence to base class
 - Evaluate layers in parallel (one dataloader per layer, where cache_dataset returns a list of datasets)
+- Make a folder evaluate and move the models folder, the evaluate.py and eval_demo.ipynb there
 
 ## Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences

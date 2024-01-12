@@ -144,7 +144,7 @@ gan_lafite:
 
 ############ Combination ############
 
-combination:
+combination_add:
   image_size: [980, 980]
   batch_size: 16
   image_range: [0, 1]
@@ -160,3 +160,31 @@ combination:
     patch_size: 14
     registers: true
     layers: [11]
+
+combination_1-5:
+  image_size: [840, 840]
+  batch_size: 16
+  image_range: [0, 1]
+  model1: 'diff_sd1-5'
+  model2: 'dinov2_b14'
+  model1_config:
+    model: 'runwayml/stable-diffusion-v1-5'
+    layers: [3, 7, 11]
+    step: 201
+  model2_config:
+    version: 2
+    model_size: 'b'
+    patch_size: 14
+    registers: false
+    layers: [11]
+
+############ Ensemble ############
+
+ensemble_ts:
+  image_size: [768, 768]
+  batch_size: 32
+  model: "stabilityai/sdxl-turbo"
+  layers: [1]
+  steps: [201]
+  ensemble_size: 1
+  random_cropping: false

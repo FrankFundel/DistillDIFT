@@ -12,6 +12,7 @@ from models.gan import StyleGAN
 from models.mae import MAE
 from models.clip import CLIP
 from models.combination import Combination
+from models.ensemble import Ensemble
 
 def read_model_config(config_path):
     """
@@ -66,5 +67,7 @@ def load_model(model_name, config, device_type):
         return Combination(load_model(config['model1'], config['model1_config'], device_type),
                            load_model(config['model2'], config['model2_config'], device_type),
                            device_type)
+    if model_name.startswith('ensemble'):
+        return Ensemble(config['model'], config['layers'], config['steps'], config['ensemble_size'], config['random_cropping'], device_type)
 
     raise ValueError('Model not recognized.')
