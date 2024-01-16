@@ -1,4 +1,9 @@
 # Configuration file for the models
 # See README.md for more details
 
-############ Replicate ############
+############ Single Teacher ############
+
+single_first_stage:
+  teacher_model: ""
+  student_model: ""
+  batch_size: 32

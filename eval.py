@@ -65,10 +65,11 @@ def evaluate(model, dataloader, pck_threshold, layers=None, use_cache=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('model_name', type=str, default='luo', help='Name of model to evaluate')
-    parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
+    parser.add_argument('model_name', type=str, help='Name of model to evaluate')
+    parser.add_argument('--dataset_names', type=str, nargs='+', default=['SPair-71k', 'PF-WILLOW', 'CUB-200-2011'], help='Names of the datasets to evaluate on')
     parser.add_argument('--model_config', type=str, default='eval_config.yaml', help='Path to model config file')
-    parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'], help='Device to run model on')
+    parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
+    parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'], help='Device to run on')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
     parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False, help='Precalculate features and use them for faster evaluation')
@@ -80,6 +81,7 @@ if __name__ == '__main__':
     # Parse arguments
     args = parser.parse_args()
     model_name = args.model_name
+    dataset_names = args.dataset_names
     dataset_config = args.dataset_config
     model_config = args.model_config
     device_type = args.device
@@ -117,7 +119,7 @@ if __name__ == '__main__':
     print(f"\n{'='*30} Evaluate {model_name} {'='*30}\n")
 
     # Evaluate
-    for dataset_name in dataset_config:
+    for dataset_name in dataset_names:
         print(f"Dataset: {dataset_name}")
 
         # Load dataset parameters
@@ -142,6 +144,7 @@ if __name__ == '__main__':
             cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
             dataset = cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers)
 
+        # Create dataloader
         def collate_fn(batch):
             return {
                 'source_image': torch.stack([sample['source_image'] for sample in batch]),

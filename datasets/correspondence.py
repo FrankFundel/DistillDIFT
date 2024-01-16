@@ -15,8 +15,8 @@ class CorrespondenceDataset(data.Dataset):
 
     def __init__(self, dataset_directory, preprocess=None, split='test'):
         self.dataset_directory = dataset_directory
-        self.split = split
         self.preprocess = preprocess
+        self.split = split
         self.data = self.load_data()
 
     def load_data(self):
@@ -42,7 +42,7 @@ class CorrespondenceDataset(data.Dataset):
         return sample
 
 
-class SPairDataset(CorrespondenceDataset):
+class SPair(CorrespondenceDataset):
     """
     Dataset class for the SPair-71k dataset.
     """
@@ -82,7 +82,7 @@ class SPairDataset(CorrespondenceDataset):
         return data
 
 
-class PFWillowDataset(CorrespondenceDataset):
+class PFWillow(CorrespondenceDataset):
     """
     Dataset class for the PF-Willow dataset.
     """
@@ -127,7 +127,7 @@ class PFWillowDataset(CorrespondenceDataset):
         return data
 
 
-class CUBDataset(CorrespondenceDataset):
+class CUB(CorrespondenceDataset):
     """
     Dataset class for the CUB-200-2011 dataset.
     """

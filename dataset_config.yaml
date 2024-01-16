@@ -1,6 +1,8 @@
 # Dataset configuration file for the datasets
 # See README.md for more details
 
+############ Corresondence Datasets ############
+
 SPair-71k:
   path: "/export/group/datasets/SPair-71k"
 
@@ -11,4 +13,11 @@ PF-WILLOW:
 CUB-200-2011:
   path: "/export/home/ra63des/DistillDIFT/data/CUB_200_2011"
   num_samples: 1000
+  random_sampling: true
+
+
+############ Image Datasets ############
+
+ImageNet:
+  path: "/export/group/datasets/ImageNet"
   random_sampling: true
