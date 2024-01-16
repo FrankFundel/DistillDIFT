@@ -6,7 +6,10 @@ We provide a well-written and documented code base for semantic correspondence, 
 - Let use_cache be defined by model class
 - Move compute_correspondence to base class
 - Evaluate layers in parallel (one dataloader per layer, where cache_dataset returns a list of datasets)
-- Make a folder evaluate and move the models folder, the evaluate.py and eval_demo.ipynb there
+- Change base and cache model for "batched points" and "different sized points" mode
+- Make a folder "notebooks" and move all notebooks there
+- Create train.py file
+- Rename model_config to eval_config and create train_config
 
 ## Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences

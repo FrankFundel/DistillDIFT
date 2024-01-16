@@ -5,7 +5,6 @@ from utils.correspondence import compute_correspondence
 import sys
 sys.path.append('./thirdparty/mae')
 
-import models_mae
 from torchvision.transforms import Normalize
 
 class MAE(CacheModel):
@@ -23,6 +22,8 @@ class MAE(CacheModel):
         self.layers = layers
         
         # Load model
+        import models_mae
+        
         self.extractor = getattr(models_mae, arch)()
         checkpoint = torch.load(model_path, map_location='cpu')
         self.extractor.load_state_dict(checkpoint['model'], strict=False)

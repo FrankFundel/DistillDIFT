@@ -185,6 +185,16 @@ ensemble_ts:
   batch_size: 32
   model: "stabilityai/sdxl-turbo"
   layers: [1]
-  steps: [201]
+  steps: [101]
   ensemble_size: 1
   random_cropping: false
+
+############ Prompt ############
+
+prompt:
+  image_size: [768, 768]
+  batch_size: 32
+  model: "stabilityai/sdxl-turbo"
+  layers: [1]
+  step: 101
+  prompt_mode: 'caption'

@@ -13,6 +13,7 @@ from models.mae import MAE
 from models.clip import CLIP
 from models.combination import Combination
 from models.ensemble import Ensemble
+from models.prompt import Prompt
 
 def read_model_config(config_path):
     """
@@ -69,5 +70,7 @@ def load_model(model_name, config, device_type):
                            device_type)
     if model_name.startswith('ensemble'):
         return Ensemble(config['model'], config['layers'], config['steps'], config['ensemble_size'], config['random_cropping'], device_type)
+    if model_name.startswith('prompt'):
+        return Prompt(config['model'], config['layers'], config['step'], config['prompt_mode'], device_type)
 
     raise ValueError('Model not recognized.')
