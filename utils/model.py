@@ -8,7 +8,6 @@ from models.zhang import ZhangModel
 from models.diffusion import Diffusion
 from models.dino import DINO
 from models.zoedepth import ZoeDepth
-from models.gan import StyleGAN
 from models.mae import MAE
 from models.clip import CLIP
 from models.combination import Combination
@@ -55,13 +54,11 @@ def load_model(model_name, config, device_type):
         return Diffusion(config['model'], config['layers'], config['step'], device_type)
     if model_name.startswith('dino'):
         return DINO(config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
-    if model_name == 'zoedepth':
+    if model_name.startswith('zoedepth'):
         return ZoeDepth(config['version'], config['layers'], device_type)
-    if model_name.startswith('gan'):
-        return StyleGAN(config['model_path'], config['layers'], device_type)
-    if model_name == 'mae':
+    if model_name.startswith('mae'):
         return MAE(config['model_path'], config['arch'], config['patch_size'], config['layers'], device_type)
-    if model_name == 'clip':
+    if model_name.startswith('clip'):
         return CLIP(config['layers'], device_type)
     
     if model_name.startswith('combination'):

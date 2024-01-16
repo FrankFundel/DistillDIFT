@@ -76,7 +76,8 @@ class SPairDataset(CorrespondenceDataset):
                 'target_points': target_points,
                 'source_bbox': source_bbox,
                 'target_bbox': target_bbox,
-                'category': category
+                'source_category': category,
+                'target_category': category
             })
         return data
 
@@ -120,7 +121,8 @@ class PFWillowDataset(CorrespondenceDataset):
                     'target_points': target_points,
                     'source_bbox': source_bbox,
                     'target_bbox': target_bbox,
-                    'category': category
+                    'source_category': category,
+                    'target_category': category
                 })
         return data
 
@@ -194,7 +196,8 @@ class CUBDataset(CorrespondenceDataset):
                     'target_points': target_points,
                     'source_bbox': source_bbox,
                     'target_bbox': target_bbox,
-                    'category': category
+                    'source_category': category,
+                    'target_category': category
                 })
         
         return data

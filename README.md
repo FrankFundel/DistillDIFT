@@ -4,12 +4,6 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 ## ToDo
 - Let use_cache be defined by model class
-- Move compute_correspondence to base class
-- Evaluate layers in parallel (one dataloader per layer, where cache_dataset returns a list of datasets)
-- Change base and cache model for "batched points" and "different sized points" mode
-- Make a folder "notebooks" and move all notebooks there
-- Create train.py file
-- Rename model_config to eval_config and create train_config
 
 ## Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
@@ -31,20 +25,24 @@ We provide a well-written and documented code base for semantic correspondence, 
     - `num_samples`: limit the number of samples to use
     - `random_sampling`: whether to shuffle the dataset before sampling
 
-3. Setup your `model_config.yaml`
+3. Setup your `eval_config.yaml`
     - `image_size`: size of the input images after resizing
     - `batch_size`: overwrite the batch size for evaluation
     - `grad_enabled`: whether to enable gradient calculation
     - `drop_last_batch`: whether to drop the last batch if it is smaller than the batch size
+    - `layers`: list of layers to evaluate, only possible together with `--use_cache`
+    - Additional options are passed to the model
 
-4. Run the evaluation script: `python evaluate.py [options]`
+4. Run the evaluation script: `python eval.py [options]`
     - Make sure to do set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`
     - Some models need a different diffusers version:
         - hedlin: `diffusers==0.8.0`
         - tang: `diffusers==0.15.0`
         - luo: `diffusers==0.14.0`
     - For all other models we use `diffusers==0.24.0`
-    - When using cache, remember to delete the cache file if you made changes on the model, else the features will stay the same
+    - Use `--use_cache` to speed up evaluation
+    - Use `--plot` to plot the results of layerwise evaluation
+    - When using cache, remember to use `--reset_cache` the cache file if you made changes on the model, else the features will stay the same
 
 ## Training
 
@@ -56,5 +54,5 @@ _To be continued..._
 
 ## Demos
 
-- Dataset exploration: `datasets/explore.ipynb`
-- Evaluation demo: `eval_demo.ipynb`
+- Dataset demo: `notebooks/dataset_demo.ipynb`
+- Evaluation demo: `notebooks/eval_demo.ipynb`

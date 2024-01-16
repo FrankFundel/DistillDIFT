@@ -67,7 +67,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('model_name', type=str, default='luo', help='Name of model to evaluate')
     parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
-    parser.add_argument('--model_config', type=str, default='model_config.yaml', help='Path to model config file')
+    parser.add_argument('--model_config', type=str, default='eval_config.yaml', help='Path to model config file')
     parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'], help='Device to run model on')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
@@ -150,7 +150,8 @@ if __name__ == '__main__':
                 'target_points': [sample['target_points'] for sample in batch],
                 'source_bbox': [sample['source_bbox'] for sample in batch],
                 'target_bbox': [sample['target_bbox'] for sample in batch],
-                'category': [sample['category'] for sample in batch],
+                'source_category': [sample['source_category'] for sample in batch],
+                'target_category': [sample['target_category'] for sample in batch],
                 'source_size': [sample['source_size'] for sample in batch],
                 'target_size': [sample['target_size'] for sample in batch],
             }

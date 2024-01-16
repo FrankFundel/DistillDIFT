@@ -61,27 +61,17 @@ class ZhangModel(CacheModel):
         features = torch.cat([diffusion_features, dino_features], dim=1)
         return features
     
-    def compute_correspondence(self, batch):
-        assert len(batch['source_image']) == 1 and len(batch['target_image']) == 1
-
-        predicted_points = compute_correspondence(batch['source_image'],
-                                                  batch['target_image'],
-                                                  batch['source_points'][0].unsqueeze(0),
-                                                  batch['source_size'][0],
-                                                  batch['target_size'][0])
-        return predicted_points.cpu()
-
     def __call__(self, batch):
         source_images = batch['source_image']
         target_images = batch['target_image']
-        category = batch['category'][0]
+        categories = batch['source_category'] + batch['target_category']
 
         # Prepare data
         assert len(source_images) == 1 and len(target_images) == 1
         images = torch.cat([source_images, target_images])
 
         # SD features
-        prompt = f'a photo of a {category}'
+        prompt = [f'a photo of a {c}' for c in categories]
         features = self.sd_extractor(images, prompt=prompt, layers=self.layers, steps=self.steps)
         
         # Aggregate diffusion features

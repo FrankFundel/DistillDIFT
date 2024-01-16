@@ -61,25 +61,3 @@ class ZoeDepth(CacheModel):
         h = image.shape[2] // self.patch_size
         w = image.shape[3] // self.patch_size
         return [l[:, 1:].permute(0, 2, 1).reshape(b, -1, h, w) if len(l.shape) == 3 else l for l in self.features.values()]
-
-    def compute_correspondence(self, batch):
-        predicted_points = []
-        batch_size = len(batch['source_image'])
-        for b in range(batch_size):
-            predicted_points.append(compute_correspondence(batch['source_image'][b].unsqueeze(0),
-                                                           batch['target_image'][b].unsqueeze(0),
-                                                           batch['source_points'][b].unsqueeze(0),
-                                                           batch['source_size'][b],
-                                                           batch['target_size'][b])
-                                                           .squeeze(0).cpu())
-        return predicted_points
-
-    def __call__(self, batch):
-        assert len(self.layers) == 1
-        images = torch.cat([batch['source_image'], batch['target_image']])
-
-        features = self.get_features(images)[0]
-        batch['source_image'] = features[:len(batch['source_image'])]
-        batch['target_image'] = features[len(batch['target_image']):]
-        
-        return self.compute_correspondence(batch)

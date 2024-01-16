@@ -38,10 +38,10 @@ def load_dataset(dataset_name, config, preprocess=None):
         CorrespondenceDataset: Dataset
     """
 
-    if dataset_name == 'PF-WILLOW':
-        return PFWillowDataset(config['path'], preprocess)
     if dataset_name == 'SPair-71k':
         return SPairDataset(config['path'], preprocess)
+    if dataset_name == 'PF-WILLOW':
+        return PFWillowDataset(config['path'], preprocess)
     if dataset_name == 'CUB-200-2011':
         return CUBDataset(config['path'], preprocess)
     
@@ -70,8 +70,8 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
                 keys.append(key)
         
         for sample in dataset.data:
-            process(sample['source_image_path'], sample['category'])
-            process(sample['target_image_path'], sample['category'])
+            process(sample['source_image_path'], sample['source_category'])
+            process(sample['target_image_path'], sample['target_category'])
         
         # Create dataloader
         dataloader = data.DataLoader(samples,

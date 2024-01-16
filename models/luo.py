@@ -39,21 +39,3 @@ class LuoModel(CacheModel):
         b, s, l, w, h = features.shape
         diffusion_hyperfeatures = self.aggregation_network(features.float().view((b, -1, w, h)))
         return diffusion_hyperfeatures
-    
-    def compute_correspondence(self, batch):
-        predicted_points = []
-        for i in range(self.batch_size):
-            predicted_points.append(compute_correspondence(batch['source_image'][i].unsqueeze(0),
-                                                           batch['target_image'][i].unsqueeze(0),
-                                                           batch['source_points'][i].unsqueeze(0),
-                                                           batch['source_size'][i],
-                                                           batch['target_size'][i])
-                                                           .squeeze(0).cpu())
-        return predicted_points
-
-    def __call__(self, batch):
-        images = torch.cat([batch['source_image'], batch['target_image']]).type(torch.float16)
-        diffusion_hyperfeatures = self.get_features(images)
-        batch['source_image'] = diffusion_hyperfeatures[:self.batch_size]
-        batch['target_image'] = diffusion_hyperfeatures[self.batch_size:]
-        return self.compute_correspondence(batch)

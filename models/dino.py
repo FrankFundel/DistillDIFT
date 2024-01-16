@@ -45,25 +45,3 @@ class DINO(CacheModel):
             features = self.extractor.get_intermediate_layers(image, num_layers_from_bottom, return_class_token=False)
         
         return [features[l - min(self.layers)].permute(0, 2, 1).reshape(b, -1, h, w) for l in self.layers]
-    
-    def compute_correspondence(self, batch):
-        predicted_points = []
-        batch_size = len(batch['source_image'])
-        for b in range(batch_size):
-            predicted_points.append(compute_correspondence(batch['source_image'][b].unsqueeze(0),
-                                                           batch['target_image'][b].unsqueeze(0),
-                                                           batch['source_points'][b].unsqueeze(0),
-                                                           batch['source_size'][b],
-                                                           batch['target_size'][b])
-                                                           .squeeze(0).cpu())
-        return predicted_points
-
-    def __call__(self, batch):
-        assert len(self.layers) == 1
-        images = torch.cat([batch['source_image'], batch['target_image']])
-
-        features = self.get_features(images)[0]
-        batch['source_image'] = features[:len(batch['source_image'])]
-        batch['target_image'] = features[len(batch['target_image']):]
-        
-        return self.compute_correspondence(batch)
