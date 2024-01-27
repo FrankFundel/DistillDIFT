@@ -1,7 +1,6 @@
 import torch
 
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 from torch.nn.functional import interpolate
 
 class Combination(CacheModel):

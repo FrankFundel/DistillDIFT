@@ -2,7 +2,6 @@ import torch
 from omegaconf import OmegaConf
 
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 from replicate.luo.extract_hyperfeatures import load_models
 
 class LuoModel(CacheModel):

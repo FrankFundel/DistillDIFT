@@ -24,10 +24,46 @@ from utils.model import read_model_config, load_model
 # TODO: Add support for multiple teachers
 # TODO: Add support for fine-tuning
 
-def distill(teacher, student, dataloader, criterion, optimizer, device):
-    pass
+def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device):
+    teacher.eval()
+    student.train()
 
-def train(model, dataloader, criterion, optimizer, device):
+    min_loss = float('inf')
+
+    pbar = tqdm.tqdm(total=len(dataloader))
+
+    for epoch in range(num_epochs):
+        print(f"Epoch {epoch+1}/{num_epochs}")
+        
+        for batch in dataloader:
+            # Load images on device
+            batch['image'] = batch['image'].to(device)
+
+            # Run through model
+            with torch.no_grad():
+                teacher_features = teacher(batch)
+            student_features = student(batch)
+
+            # Calculate loss
+            loss = criterion(teacher_features, student_features)
+
+            # Backpropagate loss
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # Save model if loss is lowest
+        if loss.item() < min_loss:
+            min_loss = loss.item()
+            torch.save(student.state_dict(), 'distilldift.pt')
+
+        # Update progress bar
+        pbar.update(1)
+        pbar.set_postfix({'Loss': loss.item()})
+
+    pbar.close()
+
+def train(model, dataloader, criterion, optimizer, num_epochs, device):
     pass
 
 if __name__ == '__main__':
@@ -54,13 +90,17 @@ if __name__ == '__main__':
     # Get model parameters
     image_size = model_config.get('image_size', (512, 512))
     batch_size = model_config.get('batch_size', 8)
+    num_epochs = model_config.get('num_epochs', 100)
+    learning_rate = model_config.get('learning_rate', 1e-4)
 
     # Load model
-    model = load_model(model_name, model_config, device_type)
+    teacher = load_model(model_config['teacher_name'], model_config['teacher_config'], device_type)
+    student = load_model(model_config['student_name'], model_config['student_config'], device_type)
 
     # Move model to device
     device = torch.device(device_type)
-    model.to(device)
+    teacher.to(device)
+    student.to(device)
 
     # Load dataset config
     dataset_config = read_dataset_config(dataset_config)
@@ -72,7 +112,7 @@ if __name__ == '__main__':
     preprocess = Compose([
         Resize(image_size),
         ToTensor(),
-        Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711)),
+        Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711)), # ImageNet mean and std
     ])
     dataset = load_dataset(dataset_name, config, preprocess)
 
@@ -84,9 +124,9 @@ if __name__ == '__main__':
     
     # Create criterion and optimizer
     criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(student.parameters(), lr=learning_rate)
 
     # Run training
-    distill(model, dataloader, criterion, optimizer, device)
+    distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device)
 
     print(f"\n{'='*30} Finished {'='*30}\n")

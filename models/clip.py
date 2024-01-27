@@ -1,6 +1,4 @@
-import torch
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 
 import open_clip
 from torchvision.transforms import Normalize

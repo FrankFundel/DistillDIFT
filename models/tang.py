@@ -1,5 +1,4 @@
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 from replicate.tang.models.dift_sd import SDFeaturizer
 
 class TangModel(CacheModel):

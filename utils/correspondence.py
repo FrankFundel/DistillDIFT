@@ -1,5 +1,5 @@
 import torch
-from torchvision.transforms import ToTensor, CenterCrop
+from torchvision.transforms import ToTensor
 from torch.nn.functional import interpolate
 from PIL import Image
 

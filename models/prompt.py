@@ -1,7 +1,6 @@
 import torch
 
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 from extractors.diffusion import SDExtractor
 from torchvision.transforms import Normalize, Resize
 

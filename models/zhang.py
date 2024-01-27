@@ -2,7 +2,6 @@ import torch
 from torch.nn.functional import interpolate
 
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 from extractors.diffusion import SDExtractor
 
 class ZhangModel(CacheModel):

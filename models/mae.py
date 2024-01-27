@@ -1,6 +1,5 @@
 import torch
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 
 import sys
 sys.path.append('./thirdparty/mae')

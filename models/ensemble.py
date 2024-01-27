@@ -1,9 +1,10 @@
 import torch
 
 from .base import CacheModel
-from utils.correspondence import compute_correspondence
 from extractors.diffusion import SDExtractor
 from torchvision.transforms import RandomResizedCrop
+
+from torch.nn.functional import interpolate
 
 class Ensemble(CacheModel):
     """
@@ -30,12 +31,10 @@ class Ensemble(CacheModel):
                 else:
                     image_preprocessed = image
                 features[k] = self.extractor(image_preprocessed, prompt=prompt, layers=self.layers, steps=self.steps)[self.steps[0]]
+                #features[k] = {0: interpolate(features[k][self.layers[0]], (300, 300), mode="bilinear")}
         else:
             features = self.extractor(image, prompt=prompt, layers=self.layers, steps=self.steps)
-            
-        if len(self.steps) == 1 and self.ensemble_size == 1:
-                return list(features[self.steps[0]].values())
-        
+
         features = list(zip(*[s.values() for s in features.values()])) # (steps, layers, b, c, H, W) -> (layers, steps, b, c, H, W)
         features = [torch.stack(l).mean(0) for l in features] # (layers, steps, b, c, H, W) -> (layers, b, c, H, W)
         return features

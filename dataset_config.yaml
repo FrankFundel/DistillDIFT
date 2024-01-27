@@ -19,5 +19,5 @@ CUB-200-2011:
 ############ Image Datasets ############
 
 ImageNet:
-  path: "/export/group/datasets/ImageNet"
+  path: "/export/group/datasets/ILSVRC"
   random_sampling: true
