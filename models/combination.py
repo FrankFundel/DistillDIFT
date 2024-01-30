@@ -13,7 +13,7 @@ class Combination(CacheModel):
         self.model1 = model1
         self.model2 = model2
 
-    def get_features(self, image, category):
+    def get_features(self, image, category, output_all=None):
         features1 = self.model1.get_features(image * 2 - 1, category) # SD
         if len(features1) == 1:
             features1 = features1[0]
@@ -36,5 +36,6 @@ class Combination(CacheModel):
         image_size = max(features1.shape[-1], features2.shape[-1])
         features1 = interpolate(features1, size=image_size, mode='bilinear')
         features2 = interpolate(features2, size=image_size, mode='bilinear')
-        #return [features1, features2, torch.cat([features1, features2], dim=1)]
+        if output_all:
+            return [features1, features2, torch.cat([features1, features2], dim=1)]
         return torch.cat([features1, features2], dim=1)
