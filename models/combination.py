@@ -34,6 +34,7 @@ class Combination(CacheModel):
 
         # interpolate and concatenate
         image_size = max(features1.shape[-1], features2.shape[-1])
-        return torch.cat([interpolate(features1, size=image_size, mode='bilinear'),
-                          interpolate(features2, size=image_size, mode='bilinear')
-                          ], dim=1)
+        features1 = interpolate(features1, size=image_size, mode='bilinear')
+        features2 = interpolate(features2, size=image_size, mode='bilinear')
+        #return [features1, features2, torch.cat([features1, features2], dim=1)]
+        return torch.cat([features1, features2], dim=1)

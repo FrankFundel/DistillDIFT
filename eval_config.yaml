@@ -198,3 +198,36 @@ prompt:
   layers: [1]
   step: 101
   prompt_mode: 'caption'
+
+############ Analysis ############
+
+diff_add_analysis_layers:
+  image_size: [768, 768]
+  batch_size: 32
+  model: "stabilityai/sdxl-turbo"
+  layers: [0, 1, 4, 8]
+  step: 101
+
+diff_add_analysis_timesteps:
+  image_size: [768, 768]
+  batch_size: 32
+  model: "stabilityai/sdxl-turbo"
+  layers: [1]
+  step: [101, 301, 501, 701]
+
+combination_add_analysis:
+  image_size: [980, 980]
+  batch_size: 16
+  image_range: [0, 1]
+  model1: 'diff_add'
+  model2: 'dinov2_b14_reg'
+  model1_config:
+    model: "stabilityai/sdxl-turbo"
+    layers: [1]
+    step: 101
+  model2_config:
+    version: 2
+    model_size: 'b'
+    patch_size: 14
+    registers: true
+    layers: [11]
