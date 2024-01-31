@@ -3,6 +3,9 @@ Distilling the capability of large diffusion models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
 ## ToDo
+- Implement accelerate for multiple GPUs and nodes: https://www.youtube.com/watch?v=s7dy8QRgjJ0
+- Implement sharded dataset
+- Implement different training strategies
 - Let use_cache be defined by model class
 
 ## Related Work

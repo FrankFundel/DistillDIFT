@@ -199,6 +199,23 @@ prompt:
   step: 101
   prompt_mode: 'caption'
 
+############ Distilled Models ############
+
+diff_add_baseline:
+  image_size: [280, 280]
+  batch_size: 64
+  model: "stabilityai/sdxl-turbo"
+  layers: [1]
+  step: 101
+
+distilldift_1:
+  image_size: [280, 280]
+  batch_size: 64
+  model: "stabilityai/sdxl-turbo"
+  weights: "/export/home/ra63des/DistillDIFT/distilldift.pt"
+  layers: [1]
+  step: 101
+
 ############ Analysis ############
 
 diff_add_analysis_layers:

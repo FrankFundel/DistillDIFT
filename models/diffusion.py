@@ -1,5 +1,3 @@
-import torch
-
 from .base import CacheModel
 from extractors.diffusion import SDExtractor
 

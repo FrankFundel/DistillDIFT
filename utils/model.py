@@ -77,6 +77,6 @@ def load_model(model_name, config, device_type):
     
     # Distillation models
     if model_name.startswith('distilldift'):
-        return DistillDIFT(device_type)
+        return DistillDIFT(config['model'], config['layers'], config['step'], config['weights'], device_type)
 
     raise ValueError('Model not recognized.')

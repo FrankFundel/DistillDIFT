@@ -3,13 +3,29 @@
 
 ############ Single Teacher ############
 
-single_first_stage:
-  teacher_name: "add_xl"
+distilldift_1:
+  teacher_name: "combination_add"
+  image_size: [280, 280]
   teacher_config:
-    image_size: [224, 224]
-  student_name: "distilldift_1"
+    image_range: [0, 1]
+    model1: 'diff_add'
+    model2: 'dinov2_b14_reg'
+    model1_config:
+      model: "stabilityai/sdxl-turbo"
+      layers: [1]
+      step: 101
+    model2_config:
+      version: 2
+      model_size: 'b'
+      patch_size: 14
+      registers: true
+      layers: [11]
+  student_name: "distilldift"
   student_config:
-    image_size: [224, 224]
-  batch_size: 32
+    model: "stabilityai/sdxl-turbo"
+    layers: [1]
+    step: 51 # lower step because of smaller image size
+    weights: null
+  batch_size: 8
   num_epochs: 100
   learning_rate: 0.001

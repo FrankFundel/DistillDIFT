@@ -39,13 +39,13 @@ def custom_forward_UpBlock2D(self,
         else:
             hidden_states = resnet(hidden_states, temb)
         if store_intermediates:
-            intermediates.append(hidden_states.detach())
+            intermediates.append(hidden_states) #.detach())
 
     if self.upsamplers is not None:
         for upsampler in self.upsamplers:
             hidden_states = upsampler(hidden_states, upsample_size)
             if store_intermediates:
-                intermediates.append(hidden_states.detach())
+                intermediates.append(hidden_states) #.detach())
         
     return hidden_states, intermediates
 
@@ -104,13 +104,13 @@ def custom_forward_CrossAttnUpBlock2D(
                 return_dict=False,
             )[0]
         if store_intermediates:
-            intermediates.append(hidden_states.detach())
+            intermediates.append(hidden_states) #.detach())
 
     if self.upsamplers is not None:
         for upsampler in self.upsamplers:
             hidden_states = upsampler(hidden_states, upsample_size)
             if store_intermediates:
-                intermediates.append(hidden_states.detach())
+                intermediates.append(hidden_states) #.detach())
 
     return hidden_states, intermediates
 
@@ -278,7 +278,6 @@ class CustomUNet2DConditionModel(UNet2DConditionModel):
 # This is used to perform a single timestep of the diffusion model, instead of the whole diffusion process.
 # The normal StableDiffusionPipeline only takes a prompt and a number of timesteps as input.
 # This way, steps that are not needed can be skipped, which saves a lot of time.
-@torch.no_grad()
 def custom_forward_OneStepSDPipeline(
     self,
     img_tensor,
