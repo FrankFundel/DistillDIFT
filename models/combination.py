@@ -9,8 +9,8 @@ class Combination(CacheModel):
 
     Args:
         config (dict): Model config
-        model1 (BaseModel): Model 1
-        model2 (BaseModel): Model 2
+        model1 (CacheModel): Model 1
+        model2 (CacheModel): Model 2
     """
     def __init__(self, config, model1, model2):
         super(Combination, self).__init__(config)

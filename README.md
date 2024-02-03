@@ -3,7 +3,7 @@ Distilling the capability of large diffusion models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
 ## ToDo
-- Implement accelerate (clean up model code and forward functions)
+- Implement mixed precision, fp16, cosine scheduler
 - Implement sharded dataset
 - Implement graceful exit with signal handler
 - Implement different training strategies

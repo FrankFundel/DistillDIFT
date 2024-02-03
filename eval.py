@@ -143,7 +143,7 @@ if __name__ == '__main__':
             if not os.path.exists(cache_dir):
                 os.mkdir(cache_dir)
             cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
-            dataset = cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers)
+            dataset = cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device)
 
         # Create dataloader
         def collate_fn(batch):

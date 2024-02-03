@@ -1,12 +1,13 @@
 import gc
 import torch
 import numpy as np
+from torch import nn
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 from diffusers.models.unet_2d_blocks import UpBlock2D
 from diffusers.models.unet_2d_blocks import CrossAttnUpBlock2D
 from diffusers.models.unet_2d_condition import UNet2DConditionModel
-from diffusers import StableDiffusionPipeline, AutoPipelineForText2Image, DDIMScheduler
+from diffusers import AutoPipelineForText2Image, DDIMScheduler
 from diffusers.utils.import_utils import is_torch_version
 
 def custom_forward_UpBlock2D(self,
@@ -290,7 +291,7 @@ def custom_forward_OneStepSDPipeline(
     callback_steps: int = 1,
     cross_attention_kwargs: Optional[Dict[str, Any]] = None
 ):
-    device = self._execution_device
+    device = img_tensor.device
     latents = self.vae.encode(img_tensor).latent_dist.sample() * self.vae.config.scaling_factor
     t = torch.tensor(t, dtype=torch.long, device=device)
     noise = torch.randn_like(latents).to(device)
@@ -307,8 +308,10 @@ def custom_forward_OneStepSDPipeline(
     return unet_output
 
 
-class SDExtractor:
+class SDExtractor(nn.Module):
     def __init__(self, model):
+        super(SDExtractor, self).__init__()
+
         unet = CustomUNet2DConditionModel.from_pretrained(model, subfolder="unet")
         self.pipe = AutoPipelineForText2Image.from_pretrained(model, unet=unet, safety_checker=None)
         self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
@@ -318,6 +321,12 @@ class SDExtractor:
         self.pipe.enable_xformers_memory_efficient_attention()
         gc.collect()
     
+    # Pipe is not a nn.Module, so it needs to be moved explicitly
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        self.pipe.to(*args, **kwargs)
+        return self
+
     def __call__(self, images, prompt, layers=[5], steps=[101]):
         """
         Args:

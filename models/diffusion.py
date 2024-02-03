@@ -16,7 +16,7 @@ class Diffusion(CacheModel):
         self.step = config["step"]
 
         self.extractor = SDExtractor(self.model)
-
+    
     def get_features(self, image, category):
         prompt = [f'a photo of a {c}' for c in category]
         if isinstance(self.step, int):

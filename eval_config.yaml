@@ -215,6 +215,7 @@ distilldift_1:
   weights: "/export/home/ra63des/DistillDIFT/distilldift.pt"
   layers: [1]
   step: 101
+  rank: 16
 
 ############ Analysis ############
 

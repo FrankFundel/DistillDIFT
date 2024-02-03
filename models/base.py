@@ -12,15 +12,22 @@ class BaseModel(nn.Module):
         super(BaseModel, self).__init__()
         self.config = config
 
-    """def __call__(self, batch):
+    def forward(self, batch):
         raise NotImplementedError
-    """
+
 
 class CacheModel(BaseModel):
     """
     Model that can be cached. Feature extraction and correspondence computation need to be seperable.
     """
 
+    # I don't know why I need to define this again, but it doesn't work otherwise
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        for module in self.children():
+            module.to(*args, **kwargs)
+        return self
+    
     def get_features(self, image, category):
         raise NotImplementedError
 
@@ -43,8 +50,7 @@ class CacheModel(BaseModel):
                                                     batch['target_size']).cpu()
         return predicted_points
 
-"""
-    def __call__(self, batch):
+    def forward(self, batch):
         images = torch.cat([batch['source_image'], batch['target_image']])
         categories = batch['source_category'] + batch['target_category']
 
@@ -55,4 +61,3 @@ class CacheModel(BaseModel):
         batch['target_image'] = features[len(batch['target_image']):]
         
         return self.compute_correspondence(batch)
-"""

@@ -50,7 +50,7 @@ def load_dataset(dataset_name, config, preprocess=None):
     
     raise ValueError('Dataset not recognized.')
 
-def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers):
+def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device):
     """
     Cache features from dataset.
     """
@@ -89,7 +89,7 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
         # Get features and save to cache file
         with torch.no_grad():
             for key, image, category in tqdm.tqdm(dataloader):
-                image = image.to(model.device)
+                image = image.to(device)
                 # Extend last batch if necessary
                 if len(key) < batch_size:
                     image = torch.cat([image, image[-1].repeat(batch_size-len(key), 1, 1, 1)])

@@ -48,12 +48,13 @@ class DistillDIFT(CacheModel):
         self.rank = config["rank"]
 
         self.extractor = SDExtractor(self.model)
+        
         self.add_lora_to_unet(self.extractor.pipe.unet, ["to_q", "to_k", "to_v", "query", "key", "value"], self.rank)
 
         # Load weights
         if self.weights is not None:
             self.load_state_dict(torch.load(self.weights))
-
+    
     def getattr_recursive(self, obj, path):
         parts = path.split('.')
         for part in parts:

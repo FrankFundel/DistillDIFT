@@ -11,22 +11,8 @@ from torch.nn.functional import interpolate
 from utils.dataset import read_dataset_config, load_dataset
 from utils.model import read_model_config, load_model
 
-# This python file is used to distill various models into a single smaller model.
-# It should be able to:
-# 1. Load a teacher model
-# 2. Load a student model
-# 3. Load a dataset (e.g. ImageNet)
-# 4. Perform distillation:
-#       1. Run each image pair through teacher and student
-#       2. Compute loss between features and correspondences (e.g. MSE)
-#       3. Backpropagate loss
 
-# TODO: Add support for multiple layers
-# TODO: Add support for multiple timesteps
-# TODO: Add support for multiple teachers
-# TODO: Add support for fine-tuning
-
-def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device, accelerator):
+def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, accelerator):
     teacher.eval()
     student.train()
 
@@ -39,10 +25,6 @@ def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, devi
         print(f"Epoch {epoch+1}/{num_epochs}")
         
         for i, batch in enumerate(dataloader):
-            # Load images on device
-            batch['source_image'] = batch['source_image'].to(device)
-            batch['target_image'] = batch['target_image'].to(device)
-            
             # Concatenate images
             images = torch.cat([batch['source_image'], batch['target_image']], dim=0)
             categories = batch['category'] * 2
@@ -78,7 +60,7 @@ def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, devi
             pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
 
             # Save model if loss is lowest
-            if i % 50 == 0:
+            if i > 0 and i % 50 == 0:
                 mean_loss = sum(epoch_loss) / len(epoch_loss)
                 if mean_loss < min_loss:
                     min_loss = mean_loss
@@ -86,7 +68,7 @@ def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, devi
 
     pbar.close()
 
-def train(model, dataloader, criterion, optimizer, num_epochs, device):
+def train(model, dataloader, criterion, optimizer, num_epochs, accelerator):
     pass
 
 if __name__ == '__main__':
@@ -115,15 +97,8 @@ if __name__ == '__main__':
     learning_rate = model_config.get('learning_rate', 1e-4)
 
     # Load model
-    accelerator = Accelerator()
-    device = accelerator.device
-
     teacher = load_model(model_config['teacher_name'], model_config['teacher_config'])
     student = load_model(model_config['student_name'], model_config['student_config'])
-
-    # Move model to device
-    teacher.to(device)
-    student.to(device)
 
     # Load dataset config
     dataset_config = read_dataset_config(dataset_config)
@@ -162,9 +137,10 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(student.params_to_optimize, lr=learning_rate)
     #optimizer = torch.optim.Adam(student.extractor.pipe.unet.parameters(), lr=learning_rate)
 
+    accelerator = Accelerator()
     teacher, student, optimizer, dataloader = accelerator.prepare(teacher, student, optimizer, dataloader)
 
     # Run training
-    distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device, accelerator)
+    distill(teacher, student, dataloader, criterion, optimizer, num_epochs, accelerator)
 
     print(f"\n{'='*30} Finished {'='*30}\n")

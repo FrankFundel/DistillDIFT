@@ -26,6 +26,7 @@ distilldift_1:
     layers: [1]
     step: 51 # lower step because of smaller image size
     weights: null
+    rank: 16
   batch_size: 4 # 8
   num_epochs: 100
   learning_rate: 0.001
