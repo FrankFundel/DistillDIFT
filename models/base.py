@@ -8,12 +8,13 @@ class BaseModel(nn.Module):
     Base model class.
     """
 
-    def __init__(self, device="cuda"):
+    def __init__(self, config):
         super(BaseModel, self).__init__()
-        self.device = device
+        self.config = config
 
-    def __call__(self, batch):
+    """def __call__(self, batch):
         raise NotImplementedError
+    """
 
 class CacheModel(BaseModel):
     """
@@ -42,6 +43,7 @@ class CacheModel(BaseModel):
                                                     batch['target_size']).cpu()
         return predicted_points
 
+"""
     def __call__(self, batch):
         images = torch.cat([batch['source_image'], batch['target_image']])
         categories = batch['source_category'] + batch['target_category']
@@ -53,3 +55,4 @@ class CacheModel(BaseModel):
         batch['target_image'] = features[len(batch['target_image']):]
         
         return self.compute_correspondence(batch)
+"""

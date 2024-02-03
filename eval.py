@@ -95,6 +95,7 @@ if __name__ == '__main__':
 
     # Load model config
     model_config = read_model_config(model_config)[model_name]
+    model_config['device'] = device_type # some models need to know the device (hedlin, luo, tang)
 
     # Get model parameters
     image_size = model_config.get('image_size', (512, 512))
@@ -106,7 +107,7 @@ if __name__ == '__main__':
     layers = model_config.get('layers', None)
 
     # Load model
-    model = load_model(model_name, model_config, device_type)
+    model = load_model(model_name, model_config)
 
     # Move model to device
     device = torch.device(device_type)

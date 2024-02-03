@@ -6,13 +6,21 @@ from torch.nn.functional import interpolate
 class Combination(CacheModel):
     """
     Diffusion model.
+
+    Args:
+        config (dict): Model config
+        model1 (BaseModel): Model 1
+        model2 (BaseModel): Model 2
     """
-    def __init__(self, model1, model2, device="cuda"):
-        super(Combination, self).__init__(device)
+    def __init__(self, config, model1, model2):
+        super(Combination, self).__init__(config)
         
         self.model1 = model1
         self.model2 = model2
 
+    def forward(self, image, category):
+        return self.get_features(image, category)
+    
     def get_features(self, image, category, output_all=None):
         features1 = self.model1.get_features(image * 2 - 1, category) # SD
         if len(features1) == 1:

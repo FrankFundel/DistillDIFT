@@ -7,22 +7,26 @@ from replicate.luo.extract_hyperfeatures import load_models
 class LuoModel(CacheModel):
     """
     Model from Luo et al. (https://arxiv.org/abs/2305.14334)
-    """
-    def __init__(self, batch_size, image_size, device="cuda"):
-        super(LuoModel, self).__init__(device)
 
-        self.batch_size = batch_size
-        self.image_size = image_size
+    Args:
+        config (dict): Model config
+    """
+    def __init__(self, config):
+        super(LuoModel, self).__init__(config)
+
+        self.batch_size = config["batch_size"]
+        self.image_size = config["image_size"]
+        self.device = config["device"]
         
         config_path = "replicate/luo/configs/test.yaml"
 
         # Adjust config
         config = OmegaConf.load(config_path)
         config = OmegaConf.to_container(config, resolve=True)
-        config["load_resolution"] = image_size[0]
+        config["load_resolution"] = self.image_size[0]
         OmegaConf.save(config, config_path)
         
-        _, self.diffusion_extractor, self.aggregation_network = load_models(config_path, device)
+        _, self.diffusion_extractor, self.aggregation_network = load_models(config_path, self.device)
         self.diffusion_extractor.pipe.enable_attention_slicing()
         self.diffusion_extractor.pipe.enable_xformers_memory_efficient_attention()
         

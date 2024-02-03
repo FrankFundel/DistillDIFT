@@ -4,15 +4,18 @@ from extractors.diffusion import SDExtractor
 class Diffusion(CacheModel):
     """
     Diffusion model.
-    """
-    def __init__(self, model, layers, step, device="cuda"):
-        super(Diffusion, self).__init__(device)
-        
-        self.model = model
-        self.layers = layers
-        self.step = step
 
-        self.extractor = SDExtractor(device, model)
+    Args:
+        config (dict): Model config
+    """
+    def __init__(self, config):
+        super(Diffusion, self).__init__(config)
+        
+        self.model = config["model"]
+        self.layers = config["layers"]
+        self.step = config["step"]
+
+        self.extractor = SDExtractor(self.model)
 
     def get_features(self, image, category):
         prompt = [f'a photo of a {c}' for c in category]

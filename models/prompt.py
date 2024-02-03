@@ -9,20 +9,23 @@ from transformers import BlipProcessor, BlipForConditionalGeneration
 class Prompt(CacheModel):
     """
     Prompt model.
+
+    Args:
+        config (dict): Model config
     """
-    def __init__(self, model, layers, step, prompt_mode, device="cuda"):
-        super(Prompt, self).__init__(device)
+    def __init__(self, config):
+        super(Prompt, self).__init__(config)
         
-        self.model = model
-        self.layers = layers
-        self.step = step
-        self.prompt_mode = prompt_mode
+        self.model = config["model"]
+        self.layers = config["layers"]
+        self.step = config["step"]
+        self.prompt_mode = config["prompt_mode"]
 
-        self.extractor = SDExtractor(device, model)
+        self.extractor = SDExtractor(self.model)
 
-        if prompt_mode == 'caption':
+        if self.prompt_mode == 'caption':
             self.blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
-            self.blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large").to(device)
+            self.blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large")
 
     def get_features(self, image, category):
         if self.prompt_mode == 'empty':

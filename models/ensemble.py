@@ -4,22 +4,23 @@ from .base import CacheModel
 from extractors.diffusion import SDExtractor
 from torchvision.transforms import RandomResizedCrop
 
-from torch.nn.functional import interpolate
-
 class Ensemble(CacheModel):
     """
     Ensemble model.
-    """
-    def __init__(self, model, layers, steps, ensemble_size, random_cropping, device="cuda"):
-        super(Ensemble, self).__init__(device)
-        
-        self.model = model
-        self.layers = layers
-        self.steps = steps
-        self.ensemble_size = ensemble_size
-        self.random_cropping = random_cropping
 
-        self.extractor = SDExtractor(device, model)
+    Args:
+        config (dict): Model config
+    """
+    def __init__(self, config):
+        super(Ensemble, self).__init__(config)
+        
+        self.model = config["model"]
+        self.layers = config["layers"]
+        self.steps = config["steps"]
+        self.ensemble_size = config["ensemble_size"]
+        self.random_cropping = config["random_cropping"]
+
+        self.extractor = SDExtractor(self.model)
 
     def get_features(self, image, category):
         prompt = [f'a photo of a {c}' for c in category]

@@ -6,12 +6,15 @@ from replicate.hedlin.utils.optimize_token import load_ldm, optimize_prompt, run
 class HedlinModel(BaseModel):
     """
     Model from Hedlin et al. (https://arxiv.org/abs/2305.15581)
+
+    Args:
+        config (dict): Model config
     """
-    def __init__(self, device="cuda", float16=False):
+    def __init__(self, config):
         super(HedlinModel, self).__init__()
 
-        self.device = device
-        self.float16 = float16
+        self.device = config["device"]
+        self.float16 = config["float16"]
 
         # Default values from Hedlin et al.
         self.layers = [5, 6, 7, 8]

@@ -6,31 +6,27 @@ class DINO(CacheModel):
     DINO models.
 
     Args:
-        version (int): Model version, 1 or 2
-        model_size (str): Model size, 's', 'b', 'l', 'g'
-        patch_size (int): Patch size
-        layers (list): Layers to use
-        device (str): Device to run model on
+        config (dict): Model config
     """
-    def __init__(self, version, model_size, patch_size, layers, registers, device="cuda"):
-        super(DINO, self).__init__(device)
+    def __init__(self, config):
+        super(DINO, self).__init__(config)
 
-        self.version = version
-        self.model_size = model_size
-        self.patch_size = patch_size
-        self.registers = registers
-        self.layers = layers
+        self.version = config["version"]
+        self.model_size = config["model_size"]
+        self.patch_size = config["patch_size"]
+        self.registers = config["registers"]
+        self.layers = config["layers"]
 
-        if version == 1:
+        if self.version == 1:
             repo = 'facebookresearch/dino:main'
-            model = 'dino_vit' + model_size + str(patch_size)
-        elif version == 2:
-            repo = 'facebookresearch/dinov' + str(version)
-            model = 'dinov2_vit' + model_size + str(patch_size)
-            if registers:
+            model = 'dino_vit' + self.model_size + str(self.patch_size)
+        elif self.version == 2:
+            repo = 'facebookresearch/dinov' + str(self.version)
+            model = 'dinov2_vit' + self.model_size + str(self.patch_size)
+            if self.registers:
                 model += '_reg'
-        self.extractor = torch.hub.load(repo, model).to(device)
-        self.extractor.eval()
+        
+        self.extractor = torch.hub.load(repo, model)
 
     def get_features(self, image, category=None):
         b = image.shape[0]

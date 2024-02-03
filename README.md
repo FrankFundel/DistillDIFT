@@ -3,8 +3,9 @@ Distilling the capability of large diffusion models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
 ## ToDo
-- Implement accelerate for multiple GPUs and nodes: https://www.youtube.com/watch?v=s7dy8QRgjJ0
+- Implement accelerate (clean up model code and forward functions)
 - Implement sharded dataset
+- Implement graceful exit with signal handler
 - Implement different training strategies
 - Let use_cache be defined by model class
 
@@ -49,7 +50,7 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 ## Training
 
-_To be continued..._
+- Using accelerate: `accelerate launch --multi_gpu --num_processes 2 train.py distilldift_1`
 
 ## Distilled models
 

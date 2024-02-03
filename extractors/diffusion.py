@@ -308,14 +308,11 @@ def custom_forward_OneStepSDPipeline(
 
 
 class SDExtractor:
-    def __init__(self, device, model='stabilityai/stable-diffusion-2-1'):
-        self.device = device
-
+    def __init__(self, model):
         unet = CustomUNet2DConditionModel.from_pretrained(model, subfolder="unet")
         self.pipe = AutoPipelineForText2Image.from_pretrained(model, unet=unet, safety_checker=None)
         self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
         self.pipe.vae.decoder = None
-        self.pipe = self.pipe.to(device)
 
         self.pipe.enable_attention_slicing()
         self.pipe.enable_xformers_memory_efficient_attention()
@@ -367,7 +364,6 @@ class SDExtractor:
         # Embed prompt
         prompt_embeddings = self.pipe.encode_prompt(
             prompt=prompt,
-            device=self.device,
             num_images_per_prompt=1,
             do_classifier_free_guidance=False
         )[0] # [1, 77, dim]
@@ -391,83 +387,4 @@ class SDExtractor:
                 t=t,
                 feature_indices=layers,
                 prompt_embeds=prompt_embeddings)
-        return features
-
-####################################################################################################
-### This version uses hooks instead of altering the forward function of the UNet2DConditionModel ###
-### It is slower than the above version, because the forward pass is not stopped, but it is more ###
-### flexible to other models.                                                                    ###
-####################################################################################################
-
-import copy
-from diffusers import UNet2DConditionModel
-
-class SDHookExtractor:
-    def __init__(self, device, model='stabilityai/stable-diffusion-2-1'):
-        self.device = device
-
-        unet = UNet2DConditionModel.from_pretrained(model, subfolder="unet")
-        self.pipe = StableDiffusionPipeline.from_pretrained(model, unet=unet, safety_checker=None)
-        self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
-        self.pipe.vae.decoder = None
-        self.pipe = self.pipe.to(device)
-
-        self.pipe.enable_attention_slicing()
-        self.pipe.enable_xformers_memory_efficient_attention()
-        gc.collect()
-
-    def save_fn(self, layer_idx):
-        def hook(module, input, output):
-            self.features[layer_idx] = output
-        return hook
-
-    def __call__(self, images, prompt, layers=[5], steps=[101]):
-        # Set hooks at the specified layers
-        self.features = {}
-        hooks = []
-        if 0 in layers:
-            hooks.append(self.pipe.unet.mid_block.register_forward_hook(self.save_fn(0)))
-        layer_counter = 1
-        for block in self.pipe.unet.up_blocks:
-            for l in block.resnets:
-                if layer_counter in layers:
-                    hooks.append(l.register_forward_hook(self.save_fn(layer_counter)))
-                layer_counter += 1
-            if block.upsamplers is not None:
-                for l in block.upsamplers:
-                    if layer_counter in layers:
-                        hooks.append(l.register_forward_hook(self.save_fn(layer_counter)))
-                    layer_counter += 1
-
-        # Embed prompt
-        prompt_embeddings = self.pipe.encode_prompt(
-            prompt=prompt,
-            device=self.device,
-            num_images_per_prompt=1,
-            do_classifier_free_guidance=False
-        ) # [1, 77, dim]
-        
-        # Check prompt
-        if images.shape[0] != prompt_embeddings.shape[0]:
-            if isinstance(prompt, str):
-                if prompt is None:
-                    raise ValueError("Prompt is not provided")
-                else:
-                    prompt_embeddings = prompt_embeddings.repeat(images.shape[0], 1, 1)
-            else:
-                raise ValueError("Batch-size does not match number of prompts")
-
-        # Run model
-        features = {}
-        for t in steps:
-            self.pipe(
-                img_tensor=images,
-                t=t,
-                prompt_embeds=prompt_embeddings)
-            features[t] = copy.deepcopy(self.features)
-
-        # Remove hooks
-        for hook in hooks:
-            hook.remove()
-
         return features

@@ -33,22 +33,26 @@ class LoraLinear(torch.nn.Module):
 
 class DistillDIFT(CacheModel):
     """
-    Diffusion model.
-    """
-    def __init__(self, model, layers, step, weights, device="cuda"):
-        super(DistillDIFT, self).__init__(device)
-        
-        self.model = model
-        self.layers = layers
-        self.step = step
-        self.weights = weights
+    DistillDIFT model.
 
-        self.extractor = SDExtractor(device, model)
-        self.add_lora_to_unet(self.extractor.pipe.unet, ["to_q", "to_k", "to_v", "query", "key", "value"], 16)
+    Args:
+        config (dict): Model config
+    """
+    def __init__(self, config):
+        super(DistillDIFT, self).__init__(config)
+        
+        self.model = config["model"]
+        self.layers = config["layers"]
+        self.step = config["step"]
+        self.weights = config["weights"]
+        self.rank = config["rank"]
+
+        self.extractor = SDExtractor(self.model)
+        self.add_lora_to_unet(self.extractor.pipe.unet, ["to_q", "to_k", "to_v", "query", "key", "value"], self.rank)
 
         # Load weights
-        if weights is not None:
-            self.load_state_dict(torch.load(weights, map_location=device))
+        if self.weights is not None:
+            self.load_state_dict(torch.load(self.weights))
 
     def getattr_recursive(self, obj, path):
         parts = path.split('.')
@@ -75,7 +79,7 @@ class DistillDIFT(CacheModel):
                 layer_module.out_features,
                 layer_module.in_features,
                 rank,
-            ).to(self.device)
+            )
 
             # W is the original weight matrix
             ll.W.load_state_dict({path.split(".")[-1]: w})
@@ -90,7 +94,10 @@ class DistillDIFT(CacheModel):
                 if p.requires_grad:
                     self.params_to_optimize.append(p)
                     
+    def forward(self, image, category):
+        return self.get_features(image, category)
+
     def get_features(self, image, category):
         prompt = [f'a photo of a {c}' for c in category]
         features = self.extractor(image, prompt=prompt, layers=self.layers, steps=[self.step])[self.step]
-        return list(features.values()) #[0] # first layer only
+        return list(features.values())[0] # first layer only

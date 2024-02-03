@@ -1,6 +1,8 @@
 import torch
-import tqdm
+from accelerate.utils import tqdm # import tqdm
 import argparse
+
+from accelerate import Accelerator
 
 import torch.utils.data as data
 from torchvision.transforms import Compose, Resize, Normalize, ToTensor
@@ -24,14 +26,14 @@ from utils.model import read_model_config, load_model
 # TODO: Add support for multiple teachers
 # TODO: Add support for fine-tuning
 
-def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device):
+def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device, accelerator):
     teacher.eval()
     student.train()
 
     epoch_loss = []
     min_loss = float('inf')
 
-    pbar = tqdm.tqdm(total=len(dataloader))
+    pbar = tqdm(total=len(dataloader))
 
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}")
@@ -47,8 +49,8 @@ def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, devi
 
             # Run through model
             with torch.no_grad():
-                teacher_features = teacher.get_features(images, categories)
-            student_features = student.get_features(images, categories)
+                teacher_features = teacher(images, categories)
+            student_features = student(images, categories)
 
             student_features = interpolate(student_features, teacher_features.shape[-2:]) # this could eventuall be replaced by a trainable upscaler
 
@@ -67,7 +69,8 @@ def distill(teacher, student, dataloader, criterion, optimizer, num_epochs, devi
 
             # Backpropagate loss
             optimizer.zero_grad()
-            loss.backward()
+            #loss.backward()
+            accelerator.backward(loss)
             optimizer.step()
 
             # Update progress bar
@@ -92,7 +95,6 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_name', type=str, default='ImageNet', help='Name of dataset to train on')
     parser.add_argument('--model_config', type=str, default='train_config.yaml', help='Path to model config file')
     parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
-    parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'], help='Device to run on')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
 
     # Parse arguments
@@ -101,7 +103,6 @@ if __name__ == '__main__':
     dataset_name = args.dataset_name
     model_config = args.model_config
     dataset_config = args.dataset_config
-    device_type = args.device
     num_workers = args.num_workers
 
     # Load model config
@@ -114,11 +115,13 @@ if __name__ == '__main__':
     learning_rate = model_config.get('learning_rate', 1e-4)
 
     # Load model
-    teacher = load_model(model_config['teacher_name'], model_config['teacher_config'], device_type)
-    student = load_model(model_config['student_name'], model_config['student_config'], device_type)
+    accelerator = Accelerator()
+    device = accelerator.device
+
+    teacher = load_model(model_config['teacher_name'], model_config['teacher_config'])
+    student = load_model(model_config['student_name'], model_config['student_config'])
 
     # Move model to device
-    device = torch.device(device_type)
     teacher.to(device)
     student.to(device)
 
@@ -159,7 +162,9 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(student.params_to_optimize, lr=learning_rate)
     #optimizer = torch.optim.Adam(student.extractor.pipe.unet.parameters(), lr=learning_rate)
 
+    teacher, student, optimizer, dataloader = accelerator.prepare(teacher, student, optimizer, dataloader)
+
     # Run training
-    distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device)
+    distill(teacher, student, dataloader, criterion, optimizer, num_epochs, device, accelerator)
 
     print(f"\n{'='*30} Finished {'='*30}\n")

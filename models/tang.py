@@ -4,11 +4,16 @@ from replicate.tang.models.dift_sd import SDFeaturizer
 class TangModel(CacheModel):
     """
     Model from Tang et al. (https://arxiv.org/abs/2306.03881)
-    """
-    def __init__(self, device="cuda"):
-        super(TangModel, self).__init__(device)
 
-        self.dift = SDFeaturizer(device)
+    Args:
+        config (dict): Model config
+    """
+    def __init__(self, config):
+        super(TangModel, self).__init__(config)
+
+        self.device = config["device"]
+
+        self.dift = SDFeaturizer(self.device)
         self.ensemble_size = 8
 
     def get_features(self, image, category):

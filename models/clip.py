@@ -8,14 +8,13 @@ class CLIP(CacheModel):
     CLIP model (ViT-L-14-336 by OpenAI).
 
     Args:
-        layers (list): Layers to use
-        device (str): Device to run model on
+        config (dict): Model config
     """
-    def __init__(self, layers, device="cuda"):
-        super(CLIP, self).__init__(device)
+    def __init__(self, config):
+        super(CLIP, self).__init__(config)
         
         self.patch_size = 14
-        self.layers = layers
+        self.layers = config["layers"]
         self.extractor, _, preprocess = open_clip.create_model_and_transforms('ViT-L-14-336', pretrained='openai')
         self.extractor.eval()
 

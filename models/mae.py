@@ -11,20 +11,21 @@ class MAE(CacheModel):
     MAE model.
 
     Args:
-        layers (list): Layers to use
-        device (str): Device to run model on
+        config (dict): Model config
     """
-    def __init__(self, model_path, arch, patch_size, layers, device="cuda"):
-        super(MAE, self).__init__(device)
+    def __init__(self, config):
+        super(MAE, self).__init__(config)
         
-        self.patch_size = patch_size
-        self.layers = layers
+        self.patch_size = config["patch_size"]
+        self.layers = config["layers"]
+        self.model_path = config["model_path"]
+        self.arch = config["arch"]
         
         # Load model
         import models_mae
         
-        self.extractor = getattr(models_mae, arch)()
-        checkpoint = torch.load(model_path, map_location='cpu')
+        self.extractor = getattr(models_mae, self.arch)()
+        checkpoint = torch.load(self.model_path, map_location='cpu')
         self.extractor.load_state_dict(checkpoint['model'], strict=False)
 
         # Set hooks at the specified layers

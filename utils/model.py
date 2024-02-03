@@ -30,14 +30,13 @@ def read_model_config(config_path):
         config = yaml.safe_load(f)
     return config
 
-def load_model(model_name, config, device_type):
+def load_model(model_name, config):
     """
     Load model from config.
 
     Args:
         model_name (str): Name of model
         config (dict): Model config
-        device_type (str): Device type
     
     Returns:
         BaseModel: Model
@@ -45,38 +44,38 @@ def load_model(model_name, config, device_type):
 
     # Replication models
     if model_name == 'luo':
-        return LuoModel(config['batch_size'], config['image_size'], device_type)
+        return LuoModel(config)
     if model_name == 'hedlin':
-        return HedlinModel(device_type)
+        return HedlinModel(config)
     if model_name == 'tang':
-        return TangModel(device_type)
+        return TangModel(config)
     if model_name == 'zhang':
-        return ZhangModel(device_type)
+        return ZhangModel(config)
     
     # Pretrained models
     if model_name.startswith('diff'):
-        return Diffusion(config['model'], config['layers'], config['step'], device_type)
+        return Diffusion(config)
     if model_name.startswith('dino'):
-        return DINO(config['version'], config['model_size'], config['patch_size'], config['layers'], device_type)
+        return DINO(config)
     if model_name.startswith('zoedepth'):
-        return ZoeDepth(config['version'], config['layers'], device_type)
+        return ZoeDepth(config)
     if model_name.startswith('mae'):
-        return MAE(config['model_path'], config['arch'], config['patch_size'], config['layers'], device_type)
+        return MAE(config)
     if model_name.startswith('clip'):
-        return CLIP(config['layers'], device_type)
+        return CLIP(config)
     
     # Experimenatal models
     if model_name.startswith('combination'):
-        return Combination(load_model(config['model1'], config['model1_config'], device_type),
-                           load_model(config['model2'], config['model2_config'], device_type),
-                           device_type)
+        return Combination(config,
+                           load_model(config['model1'], config['model1_config']),
+                           load_model(config['model2'], config['model2_config']))
     if model_name.startswith('ensemble'):
-        return Ensemble(config['model'], config['layers'], config['steps'], config['ensemble_size'], config['random_cropping'], device_type)
+        return Ensemble(config)
     if model_name.startswith('prompt'):
-        return Prompt(config['model'], config['layers'], config['step'], config['prompt_mode'], device_type)
+        return Prompt(config)
     
     # Distillation models
     if model_name.startswith('distilldift'):
-        return DistillDIFT(config['model'], config['layers'], config['step'], config['weights'], device_type)
+        return DistillDIFT(config)
 
     raise ValueError('Model not recognized.')

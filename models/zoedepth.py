@@ -6,16 +6,15 @@ class ZoeDepth(CacheModel):
     ZoeDepth model.
 
     Args:
-        version (int): Model version, must be one of "N", "K" or "NK"
-        layers (list): Layers to use
-        device (str): Device to run model on
+        config (dict): Model config
     """
-    def __init__(self, version, layers, device="cuda"):
-        super(ZoeDepth, self).__init__(device)
+    def __init__(self, config):
+        super(ZoeDepth, self).__init__(config)
         
         self.patch_size = 16 # BeiT
-        self.layers = layers
-        self.extractor = torch.hub.load("isl-org/ZoeDepth", 'ZoeD_' + version, pretrained=True).to(device)
+        self.layers = config["layers"]
+        self.version = config["version"]
+        self.extractor = torch.hub.load("isl-org/ZoeDepth", 'ZoeD_' + self.version, pretrained=True)
         self.extractor.eval()
 
         # Set hooks at the specified layers

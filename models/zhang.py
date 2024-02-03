@@ -8,20 +8,23 @@ class ZhangModel(CacheModel):
     """
     Model from Zhang et al. (https://arxiv.org/abs/2305.14334)
     Using own SD and DINO extractors
+
+    Args:
+        config (dict): Model config
     """
-    def __init__(self, device="cuda"):
-        super(ZhangModel, self).__init__(device)
+    def __init__(self, config):
+        super(ZhangModel, self).__init__(config)
 
         self.pca_dim = 256
         self.layers = [3, 7, 11]
         self.steps = [100]
-        self.sd_extractor = SDExtractor(device, model='runwayml/stable-diffusion-v1-5')
+        self.sd_extractor = SDExtractor(model='runwayml/stable-diffusion-v1-5')
 
         self.patch_size = 14
         self.num_patches = 60
         self.dino_image_size = 840
         self.dino_layer = 11
-        self.dino_extractor = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').to(device)
+        self.dino_extractor = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
         self.dino_extractor.eval()
 
     def co_pca(self, features, n=64):
