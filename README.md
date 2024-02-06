@@ -1,23 +1,21 @@
 # DistillDIFT
-Distilling the capability of large diffusion models for semantic correspondence.
+Distilling the capability of large diffusion models and transformer models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
-## ToDo
-- Implement mixed precision, fp16, cosine scheduler
+## 🚀 Getting Started
+
+## ⏳ ToDo
 - Implement sharded dataset
-- Implement graceful exit with signal handler
 - Implement different training strategies
 - Let use_cache be defined by model class
 
-## Related Work
+## 💼 Related Work
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
 2. Tang et al.: https://github.com/Tsingularity/dift
 3. Zhang et al.: https://github.com/Junyi42/sd-dino
 4. Luo et al.: https://github.com/diffusion-hyperfeatures/diffusion_hyperfeatures
 
-## Evaluation
-
-### Tutorial
+## 🧫 Evaluation
 
 1. Download datasets
     - SPair-71k: `bash datasets/download_spair.sh`
@@ -48,15 +46,15 @@ We provide a well-written and documented code base for semantic correspondence, 
     - Use `--plot` to plot the results of layerwise evaluation
     - When using cache, remember to use `--reset_cache` the cache file if you made changes on the model, else the features will stay the same
 
-## Training
+## 🔬 Training
 
 - Using accelerate: `accelerate launch --multi_gpu --num_processes 2 train.py distilldift_1`
 
-## Distilled models
+## ⚗️ Distilled models
 
 _To be continued..._
 
-## Demos
+## ⭐ Demos
 
 - Dataset demo: `notebooks/dataset_demo.ipynb`
 - Evaluation demo: `notebooks/eval_demo.ipynb`

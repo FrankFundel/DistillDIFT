@@ -4,6 +4,8 @@ env
 data
 cache
 thirdparty
+logs
+checkpoints
 
 *.pt
 *.pth

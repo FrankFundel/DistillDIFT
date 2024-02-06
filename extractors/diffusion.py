@@ -313,7 +313,7 @@ class SDExtractor(nn.Module):
         super(SDExtractor, self).__init__()
 
         unet = CustomUNet2DConditionModel.from_pretrained(model, subfolder="unet")
-        self.pipe = AutoPipelineForText2Image.from_pretrained(model, unet=unet, safety_checker=None)
+        self.pipe = AutoPipelineForText2Image.from_pretrained(model, unet=unet, safety_checker=None, torch_dtype=torch.float16)
         self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
         self.pipe.vae.decoder = None
 
