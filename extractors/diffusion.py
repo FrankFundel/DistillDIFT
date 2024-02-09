@@ -309,11 +309,11 @@ def custom_forward_OneStepSDPipeline(
 
 
 class SDExtractor(nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, half_precision=False):
         super(SDExtractor, self).__init__()
 
         unet = CustomUNet2DConditionModel.from_pretrained(model, subfolder="unet")
-        self.pipe = AutoPipelineForText2Image.from_pretrained(model, unet=unet, safety_checker=None, torch_dtype=torch.float16)
+        self.pipe = AutoPipelineForText2Image.from_pretrained(model, unet=unet, safety_checker=None, torch_dtype=torch.bfloat16 if half_precision else torch.float32)
         self.pipe.scheduler = DDIMScheduler.from_pretrained(model, subfolder="scheduler")
         self.pipe.vae.decoder = None
 
@@ -374,7 +374,8 @@ class SDExtractor(nn.Module):
         prompt_embeddings = self.pipe.encode_prompt(
             prompt=prompt,
             num_images_per_prompt=1,
-            do_classifier_free_guidance=False
+            do_classifier_free_guidance=False,
+            device=images.device
         )[0] # [1, 77, dim]
         
         # Check prompt

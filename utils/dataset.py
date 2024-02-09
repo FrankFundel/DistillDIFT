@@ -50,19 +50,29 @@ def load_dataset(dataset_name, config, preprocess=None):
     
     raise ValueError('Dataset not recognized.')
 
-def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device):
+def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device, half_precision):
     """
     Cache features from dataset.
+
+    Args:
+        model (CacheModel): Model
+        dataset (CorrespondenceDataset): Dataset
+        cache_path (str): Path to cache file
+        reset_cache (bool): Whether to reset cache
+        batch_size (int): Batch size
+        num_workers (int): Number of workers for dataloader
+        device (torch.device): Device
+        half_precision (bool): Whether to use half precision
     """
+
+    if os.path.exists(cache_path) and not reset_cache:
+        print(f"Cache file {cache_path} already exists.")
+        return CacheDataset(dataset, cache_path)
 
     print(f"Caching features to {cache_path}")
 
-    # Filter out keys already in cache and preprocess images
-    with h5py.File(cache_path, 'w' if reset_cache else 'a') as f:
-        # If the first item is a group, use its keys
-        item = next(iter(f.items()), [None, {}])[1]
-        keys = list(item.keys() if isinstance(item, h5py.Group) else f.keys())
-        
+    with h5py.File(cache_path, 'w') as f:
+        keys = []
         samples = []
         def process(image_path, category):
             key = os.path.basename(image_path)
@@ -89,7 +99,7 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
         # Get features and save to cache file
         with torch.no_grad():
             for key, image, category in tqdm.tqdm(dataloader):
-                image = image.to(device)
+                image = image.to(device, dtype=torch.bfloat16 if half_precision else torch.float32)
                 # Extend last batch if necessary
                 if len(key) < batch_size:
                     image = torch.cat([image, image[-1].repeat(batch_size-len(key), 1, 1, 1)])
@@ -99,7 +109,7 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
                 
                 def save_features(g, features):
                     for i, k in enumerate(key):
-                        g.create_dataset(k, data=features[i])
+                        g.create_dataset(k, data=features[i].type(torch.float16 if half_precision else torch.float32))
 
                 if type(features) is list: # (l, b, c, h, w)
                     for l, layer in enumerate(layers):

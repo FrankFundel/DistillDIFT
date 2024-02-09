@@ -33,7 +33,7 @@ def rescale_points(points, old_size, new_size):
 
     Args:
         points (torch.Tensor): [N, 2] where each point is (x, y)
-        old_size (tuple): (height, width)
+        old_size (tuple): (width, height)
         new_size (tuple): (width, height)
 
     Returns:

@@ -1,15 +1,58 @@
 # DistillDIFT
+
 Distilling the capability of large diffusion models and transformer models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
 
 ## 🚀 Getting Started
 
+_To be continued..._
+
 ## ⏳ ToDo
+
+### Analysis
+1. Measure accuracy of SD and DINO using boxplot on distances
+2. Create disentangled dataset using COCO
+3. Measure spatial and semantic knowledge of SD and DINO
+4. Measure performance on 3D data
+5. Measure performance on semantic flow
+6. Recreate qualitative analysis of layers/timesteps with segmented images
+
+SD strengths:
+- Spatial knowledge and semantic knowledge: Performance on disentangled dataset, semantic flow and 3D data
+
+DINO strengths:
+- Higher acc because of resolution: Performance drops on lower resolution
+
+### Training
+1. Implement no-teacher train loop
+2. Train supervised on SPair-71k (no-teacher):
+    1. SD, fine-tune, cross-entropy loss on softmax
+    2. SD, fine-tune, MSE
+    3. DINO, fine-tune, cross-entropy loss on softmax
+    4. DINO, fine-tune, MSE
+    5. SD, LoRA, cross-entropy loss on softmax
+    6. SD, LoRA, MSE
+    7. DINO, LoRA, cross-entropy loss on softmax
+    8. DINO, LoRA, MSE
+    9. SD, no LoRA, no fine-tune, only Upscaler, cross-entropy loss on softmax
+    10. SD, no LoRA, no fine-tune, only Upscaler, MSE
+    11. (DINO, no LoRA, no fine-tune, only Upscaler, cross-entropy loss on softmax)
+    12. (DINO, no LoRA, no fine-tune, only Upscaler, MSE)
+3. Implement strategies: Foreground and Random Point Sampling
+3. Train unsupervised on ImageNet (with teacher):
+    1. Best performing model from 2. on foreground with random point sampling, cross-entropy loss on softmax
+    2. Best performing model from 2. on foreground with random point sampling, MSE
+    3. Best performing model from 2. on foreground, MSE
+    4. Best performing model from 2. on full, MSE
+
+- Make sure there are no unnecessary gradients and everything is in eval mode and fp16
+- Use kernel softmax for cross-entropy loss
+- Apply LoRA to different layers
+- Cache features from teacher
 - Implement sharded dataset
-- Implement different training strategies
-- Let use_cache be defined by model class
 
 ## 💼 Related Work
+
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
 2. Tang et al.: https://github.com/Tsingularity/dift
 3. Zhang et al.: https://github.com/Junyi42/sd-dino
@@ -36,7 +79,7 @@ We provide a well-written and documented code base for semantic correspondence, 
     - Additional options are passed to the model
 
 4. Run the evaluation script: `python eval.py [options]`
-    - Make sure to do set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`
+    - Make sure to set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`
     - Some models need a different diffusers version:
         - hedlin: `diffusers==0.8.0`
         - tang: `diffusers==0.15.0`
@@ -44,7 +87,7 @@ We provide a well-written and documented code base for semantic correspondence, 
     - For all other models we use `diffusers==0.24.0`
     - Use `--use_cache` to speed up evaluation
     - Use `--plot` to plot the results of layerwise evaluation
-    - When using cache, remember to use `--reset_cache` the cache file if you made changes on the model, else the features will stay the same
+    - When using cache, remember to use `--reset_cache` if you made changes on the model, else the features will stay the same
 
 ## 🔬 Training
 
@@ -58,3 +101,4 @@ _To be continued..._
 
 - Dataset demo: `notebooks/dataset_demo.ipynb`
 - Evaluation demo: `notebooks/eval_demo.ipynb`
+- Qualitative analysis: `notebooks/qualitative_analysis.ipynb`

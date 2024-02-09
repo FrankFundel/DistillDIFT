@@ -20,10 +20,10 @@ def eval(model, dataloader, pck_threshold, use_cache=False):
     keypoints = 0
     
     for batch in dataloader:
-        # Load images on device
+        # Load images or features on device
         batch['source_image'] = batch['source_image'].to(device)
         batch['target_image'] = batch['target_image'].to(device)
-
+        
         # Run through model
         if use_cache:
             predicted_points = model.compute_correspondence(batch)
@@ -105,13 +105,14 @@ if __name__ == '__main__':
     rescale_data = model_config.get('rescale_data', False)
     image_range = model_config.get('image_range', (-1, 1))
     layers = model_config.get('layers', None)
+    half_precision = model_config.get('half_precision', False)
 
     # Load model
     model = load_model(model_name, model_config)
 
     # Move model to device
     device = torch.device(device_type)
-    model.to(device)
+    model.to(device, dtype=torch.bfloat16 if half_precision else torch.float32)
 
     # Load dataset config
     dataset_config = read_dataset_config(dataset_config)
@@ -143,22 +144,16 @@ if __name__ == '__main__':
             if not os.path.exists(cache_dir):
                 os.mkdir(cache_dir)
             cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
-            dataset = cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device)
+            dataset = cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device, half_precision)
 
         # Create dataloader
         def collate_fn(batch):
-            return {
-                'source_image': torch.stack([sample['source_image'] for sample in batch]),
-                'target_image': torch.stack([sample['target_image'] for sample in batch]),
-                'source_points': [sample['source_points'] for sample in batch],
-                'target_points': [sample['target_points'] for sample in batch],
-                'source_bbox': [sample['source_bbox'] for sample in batch],
-                'target_bbox': [sample['target_bbox'] for sample in batch],
-                'source_category': [sample['source_category'] for sample in batch],
-                'target_category': [sample['target_category'] for sample in batch],
-                'source_size': [sample['source_size'] for sample in batch],
-                'target_size': [sample['target_size'] for sample in batch],
-            }
+            output = {}
+            for key in batch[0].keys():
+                output[key] = [sample[key] for sample in batch]
+                if key in ['source_image', 'target_image']:
+                    output[key] = torch.stack(output[key])
+            return output
         
         dataloader = data.DataLoader(dataset,
                                      batch_size=batch_size,

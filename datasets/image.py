@@ -3,6 +3,7 @@ import json
 import copy
 import numpy as np
 from PIL import Image
+import webdataset as wds
 import torch.utils.data as data
 
 class ImageDataset(data.Dataset):
@@ -87,3 +88,36 @@ class ImageNet(ImageDataset):
                     "category": target
                 })
 
+class ImageWebDataset(wds.WebDataset):
+    """
+    WebDataset class for image datasets.
+    """
+
+    def __init__(self, dataset_directory, preprocess=None, split='train', image_pair=False, **kwargs):
+        self.dataset_directory = dataset_directory
+        self.preprocess = preprocess
+        self.split = split
+        self.image_pair = image_pair
+        self.category_to_path = {}
+
+        shards = [f for f in os.listdir(dataset_directory) if f.endswith('.tar') and split in f]
+        super().__init__(shards, **kwargs)
+
+    def load_image(self, path):
+        image = Image.open(path).convert('RGB')
+        size = image.size
+        if self.preprocess is not None:
+            image = self.preprocess(image)
+        return image, size
+    
+    def __iter__(self):
+        for sample in super().__iter__():
+            sample = json.loads(sample)
+            if self.image_pair:
+                target_path = np.random.choice(self.category_to_path[sample['category']])
+                sample['source_image'], sample['source_size'] = self.load_image(sample['image_path'])
+                sample['target_image'], sample['target_size'] = self.load_image(target_path)
+            else:
+                sample['image'], sample['size'] = self.load_image(sample['image_path'])
+
+            yield sample

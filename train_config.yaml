@@ -5,7 +5,7 @@
 
 distilldift_1:
   teacher_name: "combination_add"
-  image_size: [280, 280]
+  image_size: [518, 518]
   teacher_config:
     image_range: [0, 1]
     model1: 'diff_add'
@@ -23,11 +23,12 @@ distilldift_1:
   student_name: "distilldift"
   student_config:
     model: "stabilityai/sdxl-turbo"
-    layers: [1]
-    step: 51 # lower step because of smaller image size
+    #layers: [1]
+    step: 101
     weights: null
     rank: 16
-  batch_size: 4 # 8
-  num_epochs: 100
+  batch_size: 2 #4 # 8
+  num_epochs: 5
   learning_rate: 0.001
   gradient_accumulation_steps: 1
+  strategy: "full"

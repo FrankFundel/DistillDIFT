@@ -14,8 +14,9 @@ class Diffusion(CacheModel):
         self.model = config["model"]
         self.layers = config["layers"]
         self.step = config["step"]
+        self.half_precision = config.get("half_precision", False)
 
-        self.extractor = SDExtractor(self.model)
+        self.extractor = SDExtractor(self.model, self.half_precision)
     
     def get_features(self, image, category):
         prompt = [f'a photo of a {c}' for c in category]

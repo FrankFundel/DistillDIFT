@@ -42,14 +42,28 @@ class DistillDIFT(CacheModel):
         super(DistillDIFT, self).__init__(config)
         
         self.model = config["model"]
-        self.layers = config["layers"]
+        self.layers = [1] #config["layers"]
         self.step = config["step"]
         self.weights = config["weights"]
         self.rank = config["rank"]
 
         self.extractor = SDExtractor(self.model)
+
+        # Freeze all layers
+        for param in self.extractor.parameters():
+            param.requires_grad = False
         
-        self.add_lora_to_unet(self.extractor.pipe.unet, ["to_q", "to_k", "to_v", "query", "key", "value"], self.rank)
+        self.params_to_optimize = []
+        #self.add_lora_to_unet(self.extractor.pipe.unet, ["to_q", "to_k", "to_v", "query", "key", "value"], self.rank)
+
+        self.upscaler = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=1280, out_channels=1024, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=1024, out_channels=960, kernel_size=4, stride=3, padding=1, output_padding=0),
+            nn.ReLU()
+        )
+        for p in self.upscaler.parameters():
+            self.params_to_optimize.append(p)
 
         # Load weights
         if self.weights is not None:
@@ -65,7 +79,6 @@ class DistillDIFT(CacheModel):
         return obj
 
     def add_lora_to_unet(self, unet, target_modules, rank):
-        self.params_to_optimize = []
         for path, w in unet.state_dict().items():
             if "attn" not in path:
                 continue
@@ -101,4 +114,6 @@ class DistillDIFT(CacheModel):
     def get_features(self, image, category):
         prompt = [f'a photo of a {c}' for c in category]
         features = self.extractor(image, prompt=prompt, layers=self.layers, steps=[self.step])[self.step]
-        return list(features.values())[0] # first layer only
+        features = list(features.values())[0] # first layer only
+        features = self.upscaler(features)
+        return features
