@@ -10,7 +10,7 @@ from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 from utils.visualization import plot_results
 
-def eval(model, dataloader, pck_threshold, use_cache=False, save_histogram=False, save_distances=False):
+def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=False, save_distances=False):
     model.eval()
 
     pbar = tqdm.tqdm(total=len(dataloader))
