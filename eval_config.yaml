@@ -107,7 +107,7 @@ clip:
   image_size: [336, 336]
   batch_size: 64
   image_range: [0, 1]
-  layers: [2, 4, 6, 9, 10, 11]
+  layers: [11] #[2, 4, 6, 9, 10, 11]
 
 ############ MAE ############
 

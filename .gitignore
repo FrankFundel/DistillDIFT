@@ -6,6 +6,7 @@ cache
 thirdparty
 logs
 checkpoints
+analysis_data
 
 *.pt
 *.pth

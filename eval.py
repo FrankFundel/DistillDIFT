@@ -10,7 +10,7 @@ from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 from utils.visualization import plot_results
 
-def eval(model, dataloader, pck_threshold, use_cache=False):
+def eval(model, dataloader, pck_threshold, use_cache=False, save_histogram=False, save_distances=False):
     model.eval()
 
     pbar = tqdm.tqdm(total=len(dataloader))
@@ -18,6 +18,8 @@ def eval(model, dataloader, pck_threshold, use_cache=False):
     pck_img = 0
     pck_bbox = 0
     keypoints = 0
+    distances = []
+    histograms = []
     
     for batch in dataloader:
         # Load images or features on device
@@ -26,7 +28,11 @@ def eval(model, dataloader, pck_threshold, use_cache=False):
         
         # Run through model
         if use_cache:
-            predicted_points = model.compute_correspondence(batch)
+            output = model.compute_correspondence(batch, return_histograms=save_histograms)
+            if save_histograms:
+                predicted_points, hists = output
+                hists = [h.cpu() for h in hists]
+            predicted_points = [p.cpu() for p in predicted_points]
         else:
             predicted_points = model(batch)
 
@@ -38,6 +44,8 @@ def eval(model, dataloader, pck_threshold, use_cache=False):
         for b in range(batch_size):
             pck_img += compute_pck_img(predicted_points[b], target_points[b], target_size[b], pck_threshold)
             pck_bbox += compute_pck_bbox(predicted_points[b], target_points[b], target_bbox[b], pck_threshold)
+            distances.append(torch.linalg.norm(predicted_points[b] - target_points[b], axis=-1))
+            histograms.append(hists[b])
             keypoints += len(target_points[b])
 
         # Update progress bar
@@ -45,6 +53,16 @@ def eval(model, dataloader, pck_threshold, use_cache=False):
         pbar.set_postfix({'PCK_img': (pck_img / keypoints) * 100, 'PCK_bbox': (pck_bbox / keypoints) * 100})
 
     pbar.close()
+
+    if save_distances:
+        # save distances for later analysis
+        distances = torch.cat(distances, dim=0)
+        torch.save(distances, f"distances.pt")
+
+    if save_histograms:
+        # save histograms for later analysis
+        histograms = torch.stack(histograms, dim=0).mean(0)
+        torch.save(histograms, f"histograms.pt")
 
     print(f"PCK_img: {(pck_img / keypoints) * 100:.2f}, PCK_bbox: {(pck_bbox / keypoints) * 100:.2f}")
     return pck_img / keypoints, pck_bbox / keypoints
@@ -77,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--reset_cache', action=argparse.BooleanOptionalAction, default=False, help='Reset cache')
     parser.add_argument('--num_samples', type=int, default=None, help='Maximum number of samples to evaluate')
     parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=False, help='Plot results')
+    parser.add_argument('--save_histograms', action=argparse.BooleanOptionalAction, default=False, help='Save histograms for later analysis')
 
     # Parse arguments
     args = parser.parse_args()
@@ -92,6 +111,8 @@ if __name__ == '__main__':
     reset_cache = args.reset_cache
     num_samples = args.num_samples
     plot = args.plot
+    save_histograms = args.save_histograms
+    save_distances = args.save_distances
 
     # Load model config
     model_config = read_model_config(model_config)[model_name]
@@ -129,7 +150,7 @@ if __name__ == '__main__':
         dataset_num_samples = config.get('num_samples', None)
         random_sampling = config.get('random_sampling', False)
 
-        preprocess = Preprocessor(image_size, preprocess_image = not use_cache, image_range=image_range, rescale_data=rescale_data)
+        preprocess = Preprocessor(image_size, preprocess_image = not use_cache, image_range=image_range, rescale_data=True)
         dataset = load_dataset(dataset_name, config, preprocess)
 
         # Limit number of samples if specified
@@ -163,11 +184,12 @@ if __name__ == '__main__':
                                      collate_fn=collate_fn)
 
         with torch.set_grad_enabled(grad_enabled):
-            pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, layers, use_cache)
+            pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, layers, use_cache, save_histograms, save_distances)
 
         if plot and layers is not None:
             if not os.path.exists('plots'):
                 os.mkdir('plots')
             plot_results(pck_img, pck_bbox, layers, f"plots/{model_name}_{dataset_name}.png")
+        break
 
     print(f"\n{'='*30} Finished {'='*30}\n")

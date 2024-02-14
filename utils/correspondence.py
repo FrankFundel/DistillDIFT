@@ -2,6 +2,7 @@ import torch
 from torchvision.transforms import ToTensor
 from torch.nn.functional import interpolate
 from PIL import Image
+import einops
 
 def flip_points(points):
     """
@@ -183,7 +184,17 @@ def normalize_features(features):
     """
     return features / torch.linalg.norm(features, dim=-1).unsqueeze(-1)
 
-def compute_correspondence(source_features, target_features, source_points, source_size, target_size=None):
+def per_sample_min_max_normalization(x):
+    """ Normalize each sample in a batch independently
+    with min-max normalization to [0, 1] """
+    bs, *shape = x.shape
+    x_ = einops.rearrange(x, "b ... -> b (...)")
+    min_val = einops.reduce(x_, "b ... -> b", "min")[..., None]
+    max_val = einops.reduce(x_, "b ... -> b", "max")[..., None]
+    x_ = (x_ - min_val) / (max_val - min_val)
+    return x_.reshape(bs, *shape)
+
+def compute_correspondence(source_features, target_features, source_points, source_size, target_size=None, return_histograms=False, batch_mode=True):
     """
     Compute correspondence between source and target features using points from the source image.
 
@@ -200,6 +211,11 @@ def compute_correspondence(source_features, target_features, source_points, sour
     
     if target_size is None:
         target_size = source_size
+
+    if not batch_mode:
+        source_features = source_features.unsqueeze(0)
+        target_features = target_features.unsqueeze(0)
+        source_points = source_points.unsqueeze(0)
 
     # Get image sizes
     sw, sh = source_size
@@ -223,6 +239,18 @@ def compute_correspondence(source_features, target_features, source_points, sour
     # Get max similarity for each point and convert to coordinates (y, x)
     predicted_idx = torch.argmax(similarity_map, dim=2) # [B, N]
     predicted_points = torch.stack([predicted_idx // tw, predicted_idx % tw], dim=2) # [B, N, 2]
+
+    if not batch_mode:
+        predicted_points = predicted_points.squeeze(0)
+
+    if return_histograms:
+        # Calculate histogram of similarity map relative to image size
+        hist = similarity_map.reshape(-1, th * tw) # [BxN, HxW]
+        hist = per_sample_min_max_normalization(hist) # [BxN, HxW]
+        hist = torch.histc(hist, bins=100, min=0, max=1) # [BxN, 100]
+        hist = hist / (th * tw)
+        return predicted_points, hist
+    
     return predicted_points
 
 def compute_pck_img(predicted_points, target_points, image_size, threshold=0.1):

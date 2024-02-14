@@ -9,13 +9,13 @@ _To be continued..._
 
 ## ⏳ ToDo
 
+- Make branch ready for merging
+
 ### Analysis
 1. Measure accuracy of SD and DINO using boxplot on distances
-2. Create disentangled dataset using COCO
+2. Create disentangled dataset using PASCAL-Part
 3. Measure spatial and semantic knowledge of SD and DINO
-4. Measure performance on 3D data
-5. Measure performance on semantic flow
-6. Recreate qualitative analysis of layers/timesteps with segmented images
+4. Recreate qualitative analysis of layers/timesteps with segmented images and concatenated features
 
 SD strengths:
 - Spatial knowledge and semantic knowledge: Performance on disentangled dataset, semantic flow and 3D data

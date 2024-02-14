@@ -31,23 +31,24 @@ class CacheModel(BaseModel):
     def get_features(self, image, category):
         raise NotImplementedError
 
-    def compute_correspondence(self, batch):
+    def compute_correspondence(self, batch, return_histograms=False):
         if isinstance(batch['source_points'], list):
             predicted_points = []
             batch_size = len(batch['source_image'])
             for b in range(batch_size):
-                predicted_points.append(compute_correspondence(batch['source_image'][b].unsqueeze(0),
-                                                            batch['target_image'][b].unsqueeze(0),
-                                                            batch['source_points'][b].unsqueeze(0),
+                predicted_points.append(compute_correspondence(batch['source_image'][b],
+                                                            batch['target_image'][b],
+                                                            batch['source_points'][b],
                                                             batch['source_size'][b],
-                                                            batch['target_size'][b])
-                                                            .squeeze(0).cpu())
+                                                            batch['target_size'][b],
+                                                            return_histograms,
+                                                            batch_mode=False))
         else: # points are tensors
             predicted_points = compute_correspondence(batch['source_image'],
                                                     batch['target_image'],
                                                     batch['source_points'],
                                                     batch['source_size'],
-                                                    batch['target_size']).cpu()
+                                                    batch['target_size'])
         return predicted_points
 
     def forward(self, batch):
