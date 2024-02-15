@@ -8,8 +8,8 @@ import imagesize
 from PIL import Image
 import torch.utils.data as data
 
-from datasets.correspondence import CorrespondenceDataset, SPair, PFWillow, CUB
-from datasets.image import ImageNet
+from datasets.correspondence import CorrespondenceDataset, SPair, PFWillow, CUB, S2K
+from datasets.image import ImageNet, PASCALPart
 from utils.correspondence import preprocess_image, flip_points, flip_bbox, rescale_points, rescale_bbox
 
 def read_dataset_config(config_path):
@@ -40,13 +40,17 @@ def load_dataset(dataset_name, config, preprocess=None):
     """
 
     if dataset_name == 'SPair-71k':
-        return SPair(config['path'], preprocess)
+        return SPair(config, preprocess)
     if dataset_name == 'PF-WILLOW':
-        return PFWillow(config['path'], preprocess)
+        return PFWillow(config, preprocess)
     if dataset_name == 'CUB-200-2011':
-        return CUB(config['path'], preprocess)
+        return CUB(config, preprocess)
     if dataset_name == 'ImageNet':
-        return ImageNet(config['path'], preprocess)
+        return ImageNet(config, preprocess)
+    if dataset_name == 'PASCALPart':
+        return PASCALPart(config, preprocess)
+    if dataset_name == 'S2K':
+        return S2K(config, preprocess)
     
     raise ValueError('Dataset not recognized.')
 

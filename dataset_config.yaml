@@ -15,9 +15,15 @@ CUB-200-2011:
   num_samples: 1000
   random_sampling: true
 
+S2K:
+  path: "/export/group/datasets/PASCAL-Part"
+  random_sampling: true
 
 ############ Image Datasets ############
 
 ImageNet:
   path: "/export/group/datasets/ILSVRC"
   random_sampling: true
+
+PASCALPart:
+  path: "/export/group/datasets/PASCAL-Part"

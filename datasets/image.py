@@ -1,6 +1,7 @@
 import os
 import json
 import copy
+import torch
 import scipy.io
 import numpy as np
 from PIL import Image
@@ -12,11 +13,11 @@ class ImageDataset(data.Dataset):
     General dataset class for image datasets.
     """
 
-    def __init__(self, dataset_directory, preprocess=None, split='train', image_pair=False):
-        self.dataset_directory = dataset_directory
+    def __init__(self, config, preprocess=None):
+        self.dataset_directory = config['path']
         self.preprocess = preprocess
-        self.split = split
-        self.image_pair = image_pair
+        self.split = config.get('split', 'test')
+        self.image_pair = config.get('image_pair', False)
         self.category_to_id = {}
         self.data = []
         self.load_data()
@@ -134,9 +135,9 @@ class PASCALPart(ImageDataset):
     Dataset class for the PASCAL-Part dataset.
     """
 
-    def __init__(self, dataset_directory, preprocess=None, split='train', image_pair=False, single_object=False):
-        self.single_object = single_object
-        super().__init__(dataset_directory, preprocess, split, image_pair)
+    def __init__(self, config, preprocess=None):
+        self.single_object = config.get('single_object', False)
+        super().__init__(config, preprocess)
 
     def load_annotations(self, path):
         annotations = scipy.io.loadmat(path)["anno"]
@@ -170,20 +171,43 @@ class PASCALPart(ImageDataset):
                 continue
             image_filename = annotation_filename.replace(".mat", ".jpg")
             image_path = os.path.join(self.dataset_directory, "VOC2010", "JPEGImages", image_filename)
+
+            # get points from part mass centers
+            # get bounding box from object mask in (x, y, w, h)
+            points = []
+            bbox = []
+            for obj in annotations:
+                for part in obj["parts"]:
+                    mask = part["mask"]
+                    y, x = np.where(mask)
+                    points.append([np.mean(x), np.mean(y)])
+
+                mask = obj["mask"]
+                y, x = np.where(mask)
+                x1, x2 = min(x), max(x)
+                y1, y2 = min(y), max(y)
+                bbox.append([x1, y1, x2 - x1, y2 - y1])
+
+                if obj["class"] not in self.category_to_id:
+                    self.category_to_id[obj["class"]] = []
+                self.category_to_id[obj["class"]].append(len(self.data))
+
             self.data.append({
                 "image_path": image_path,
                 "categories": [obj["class"] for obj in annotations], 
-                "annotations": annotations
+                "annotations": annotations,
+                "points": torch.tensor(points),
+                "bbox": torch.tensor(bbox[0]), # single object
+                "category": annotations[0]["class"], # single object
+                "mask": annotations[0]["mask"] # single object
             })
-            for obj in annotations:
-                if obj["class"] not in self.category_to_id:
-                    self.category_to_id[obj["class"]] = []
-                self.category_to_id[obj["class"]].append(len(self.data) - 1)
     
     def __getitem__(self, idx):
         sample = copy.deepcopy(self.data[idx]) # prevent memory leak
 
         if self.image_pair:
+            # make it deterministic
+            np.random.seed(23)
             random_category = np.random.choice(sample['categories']) # sample a random category from the image
             match_id = np.random.choice(self.category_to_id[random_category]) # sample a random image from the same category
             matching_sample = self.data[match_id]
@@ -193,6 +217,12 @@ class PASCALPart(ImageDataset):
             sample['target_category'] = random_category
             sample['source_annotations'] = sample['annotations']
             sample['target_annotations'] = matching_sample['annotations']
+            sample['source_points'] = sample['points']
+            sample['target_points'] = matching_sample['points']
+            sample['source_bbox'] = sample['bbox']
+            sample['target_bbox'] = matching_sample['bbox']
+            sample['source_mask'] = sample['mask']
+            sample['target_mask'] = matching_sample['mask']
         else:
             sample['image'], sample['size'] = self.load_image(sample['image_path'])
 

@@ -13,10 +13,11 @@ class CorrespondenceDataset(data.Dataset):
     General dataset class for datasets with correspondence points.
     """
 
-    def __init__(self, dataset_directory, preprocess=None, split='test'):
-        self.dataset_directory = dataset_directory
+    def __init__(self, config, preprocess=None):
+        self.config = config
+        self.dataset_directory = config['path']
         self.preprocess = preprocess
-        self.split = split
+        self.split = config.get('split', 'test')
         self.data = self.load_data()
 
     def load_data(self):
@@ -201,3 +202,77 @@ class CUB(CorrespondenceDataset):
                 })
         
         return data
+
+
+class S2K(CorrespondenceDataset):
+    """
+    Dataset class for the S2K dataset.
+    """
+
+    def load_data(self):
+        annotation_file = os.path.join(self.dataset_directory, 's2k.json')
+        with open(annotation_file, 'r') as file:
+            annotations = json.load(file)
+
+        data = []
+        for a in annotations:
+            source_bbox = torch.tensor(a['source_bbox'], dtype=torch.float16) # is already in (x, y, w, h) format
+            target_bbox = torch.tensor(a['target_bbox'], dtype=torch.float16) # is already in (x, y, w, h) format
+
+            data.append({
+                'source_image_path': os.path.join(self.dataset_directory, "VOC2010", "JPEGImages", a['source_image_path']),
+                'target_image_path': os.path.join(self.dataset_directory, "VOC2010", "JPEGImages", a['target_image_path']),
+                'source_annotation_path': os.path.join(self.dataset_directory, "Annotations_Part",  a['source_annotation_path']),
+                'target_annotation_path': os.path.join(self.dataset_directory, "Annotations_Part", a['target_annotation_path']),
+                'source_bbox': source_bbox,
+                'target_bbox': target_bbox,
+                'source_parts': a['source_parts'],
+                'target_parts': a['target_parts'],
+                'source_category': a['source_category'],
+                'target_category': a['target_category']
+            })
+
+        return data
+
+    def __getitem__(self, idx):
+        sample = copy.deepcopy(self.data[idx]) # prevent memory leak
+
+        # Load image
+        sample['source_image'] = Image.open(sample['source_image_path'])
+        sample['target_image'] = Image.open(sample['target_image_path'])
+
+        # Save image size
+        sample['source_size'] = sample['source_image'].size
+        sample['target_size'] = sample['target_image'].size
+
+        # Load parts
+        source_annotation = np.load(sample['source_annotation_path'], allow_pickle=True).item()
+        target_annotation = np.load(sample['target_annotation_path'], allow_pickle=True).item()
+
+        sample['source_annotation'] = source_annotation
+        sample['target_annotation'] = target_annotation
+    
+        # Sample center points of parts
+        source_parts = source_annotation['parts']
+        target_parts = target_annotation['parts']
+        if self.config.get('only_non_unique', False):
+            source_parts = [part for i, part in enumerate(source_parts) if i in sample['source_parts']]
+            target_parts = [part for i, part in enumerate(target_parts) if i in sample['target_parts']]
+
+        source_points = []
+        for part in source_parts:
+            y, x = np.where(part["mask"])
+            source_points.append([np.mean(x), np.mean(y)])
+        
+        target_points = []
+        for part in target_parts:
+            y, x = np.where(part["mask"])
+            target_points.append([np.mean(x), np.mean(y)])
+
+        sample['source_points'] = torch.tensor(source_points, dtype=torch.float16)
+        sample['target_points'] = torch.tensor(target_points, dtype=torch.float16)
+            
+        if self.preprocess is not None:
+            sample = self.preprocess(sample)
+
+        return sample
