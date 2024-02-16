@@ -32,6 +32,8 @@ def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=Fals
             if save_histograms:
                 predicted_points, hists = output
                 hists = [h.cpu() for h in hists]
+            else:
+                predicted_points = output
             predicted_points = [p.cpu() for p in predicted_points]
         else:
             predicted_points = model(batch)
@@ -45,7 +47,8 @@ def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=Fals
             pck_img += compute_pck_img(predicted_points[b], target_points[b], target_size[b], pck_threshold)
             pck_bbox += compute_pck_bbox(predicted_points[b], target_points[b], target_bbox[b], pck_threshold)
             distances.append(torch.linalg.norm(predicted_points[b] - target_points[b], axis=-1))
-            histograms.append(hists[b])
+            if save_histograms:
+                histograms.append(hists[b])
             keypoints += len(target_points[b])
 
         # Update progress bar
@@ -67,16 +70,16 @@ def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=Fals
     print(f"PCK_img: {(pck_img / keypoints) * 100:.2f}, PCK_bbox: {(pck_bbox / keypoints) * 100:.2f}")
     return pck_img / keypoints, pck_bbox / keypoints
 
-def evaluate(model, dataloader, pck_threshold, layers=None, use_cache=False):
+def evaluate(model, dataloader, pck_threshold, layers=None, use_cache=False, save_histograms=False, save_distances=False):
     if layers is None:
-        return eval(model, dataloader, pck_threshold, use_cache)
+        return eval(model, dataloader, pck_threshold, use_cache, save_histograms, save_distances)
 
     pck_img = []
     pck_bbox = []
     for l in layers:
         print(f"Layer {l}:")
         dataloader.dataset.set_layer(l)
-        pck_img_l, pck_bbox_l = eval(model, dataloader, pck_threshold, use_cache)
+        pck_img_l, pck_bbox_l = eval(model, dataloader, pck_threshold, use_cache, save_histograms, save_distances)
         pck_img.append(pck_img_l)
         pck_bbox.append(pck_bbox_l)
     return pck_img, pck_bbox
@@ -96,6 +99,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_samples', type=int, default=None, help='Maximum number of samples to evaluate')
     parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=False, help='Plot results')
     parser.add_argument('--save_histograms', action=argparse.BooleanOptionalAction, default=False, help='Save histograms for later analysis')
+    parser.add_argument('--save_distances', action=argparse.BooleanOptionalAction, default=False, help='Save distances for later analysis')
 
     # Parse arguments
     args = parser.parse_args()

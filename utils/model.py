@@ -13,6 +13,7 @@ from models.clip import CLIP
 from models.combination import Combination
 from models.ensemble import Ensemble
 from models.prompt import Prompt
+from models.dit import DiT
 
 from models.distilldift import DistillDIFT
 
@@ -55,6 +56,8 @@ def load_model(model_name, config):
     # Pretrained models
     if model_name.startswith('diff'):
         return Diffusion(config)
+    if model_name.startswith('dit'):
+        return DiT(config)
     if model_name.startswith('dino'):
         return DINO(config)
     if model_name.startswith('zoedepth'):

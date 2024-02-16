@@ -59,6 +59,13 @@ diff_add:
   layers: [1]
   step: 101
 
+dit:
+  image_size: [768, 768]
+  batch_size: 32
+  layers: [10]
+  step: 0
+  image_range: [0, 1]
+
 ############ DINO ############
 
 dinov1_s8:
@@ -218,6 +225,13 @@ distilldift_1:
   rank: 16
 
 ############ Analysis ############
+
+dit_add_analysis_layers:
+  image_size: [1024, 1024]
+  batch_size: 32
+  layers: [5, 11, 15, 20] # [11]
+  image_range: [0, 1]
+  step: 0 #[101, 301, 501, 701]
 
 diff_add_analysis_layers:
   image_size: [768, 768]
