@@ -149,6 +149,14 @@ gan_lafite:
   image_range: [0, 1]
   grad_enabled: true
 
+############ I-JEPA ############
+
+ijepa:
+  image_size: [448, 448]
+  batch_size: 32
+  image_range: [0, 1]
+  layers: [31] #[21, 24, 27, 31] [31]
+
 ############ Combination ############
 
 combination_add:

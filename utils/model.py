@@ -14,6 +14,7 @@ from models.combination import Combination
 from models.ensemble import Ensemble
 from models.prompt import Prompt
 from models.dit import DiT
+from models.ijepa import IJEPA
 
 from models.distilldift import DistillDIFT
 
@@ -66,6 +67,8 @@ def load_model(model_name, config):
         return MAE(config)
     if model_name.startswith('clip'):
         return CLIP(config)
+    if model_name.startswith('ijepa'):
+        return IJEPA(config)
     
     # Experimenatal models
     if model_name.startswith('combination'):

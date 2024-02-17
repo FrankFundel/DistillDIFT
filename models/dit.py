@@ -1,5 +1,5 @@
 from .base import CacheModel
-from extractors.diffusion import SDHookExtractor
+from extractors.dit import HookExtractor
 
 class DiT(CacheModel):
     """
@@ -15,7 +15,7 @@ class DiT(CacheModel):
         self.step = config["step"]
         self.half_precision = config.get("half_precision", False)
 
-        self.extractor = SDHookExtractor(self.half_precision)
+        self.extractor = HookExtractor(self.half_precision)
     
     def get_features(self, image, category):
         prompt = [f'a photo of a {c}' for c in category]
