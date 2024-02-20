@@ -233,18 +233,8 @@ class S2K(CorrespondenceDataset):
             })
 
         return data
-
-    def __getitem__(self, idx):
-        sample = copy.deepcopy(self.data[idx]) # prevent memory leak
-
-        # Load image
-        sample['source_image'] = Image.open(sample['source_image_path'])
-        sample['target_image'] = Image.open(sample['target_image_path'])
-
-        # Save image size
-        sample['source_size'] = sample['source_image'].size
-        sample['target_size'] = sample['target_image'].size
-
+    
+    def sample_points(self, sample):
         # Load parts
         source_annotation = np.load(sample['source_annotation_path'], allow_pickle=True).item()
         target_annotation = np.load(sample['target_annotation_path'], allow_pickle=True).item()
@@ -271,7 +261,21 @@ class S2K(CorrespondenceDataset):
 
         sample['source_points'] = torch.tensor(source_points, dtype=torch.float16)
         sample['target_points'] = torch.tensor(target_points, dtype=torch.float16)
-            
+
+    def __getitem__(self, idx):
+        sample = copy.deepcopy(self.data[idx]) # prevent memory leak
+
+        # Load image
+        sample['source_image'] = Image.open(sample['source_image_path'])
+        sample['target_image'] = Image.open(sample['target_image_path'])
+
+        # Save image size
+        sample['source_size'] = sample['source_image'].size
+        sample['target_size'] = sample['target_image'].size
+
+        # Sample points
+        self.sample_points(sample)
+
         if self.preprocess is not None:
             sample = self.preprocess(sample)
 

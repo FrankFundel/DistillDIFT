@@ -130,8 +130,10 @@ class CacheDataset(CorrespondenceDataset):
     """
     
     def __init__(self, dataset, cache_path):
+        self.config = dataset.config
         self.data = dataset.data
         self.preprocess = dataset.preprocess
+        self.sample_points = getattr(dataset, 'sample_points', None)
         self.file = h5py.File(cache_path, 'r')
         self.cache = self.file
 
@@ -140,6 +142,9 @@ class CacheDataset(CorrespondenceDataset):
 
     def __getitem__(self, idx):
         sample = copy.deepcopy(self.data[idx]) # Prevent memory leak
+
+        if self.sample_points is not None:
+            self.sample_points(sample)
 
         # Get image size quickly
         sample['source_size'] = imagesize.get(sample['source_image_path'])

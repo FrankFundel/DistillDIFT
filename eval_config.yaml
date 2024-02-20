@@ -108,6 +108,16 @@ dinov2_large:
   image_range: [0, 1]
   layers: [23]
 
+dinov2_b14_reg_s:
+  image_size: [336, 336]
+  batch_size: 64
+  version: 2
+  model_size: 'b'
+  patch_size: 14
+  registers: true
+  image_range: [0, 1]
+  layers: [11]
+
 ############ OpenCLIP ############
 
 clip:
@@ -192,6 +202,19 @@ combination_1-5:
     patch_size: 14
     registers: false
     layers: [11]
+
+combination_ijepa:
+  image_size: [448, 448]
+  batch_size: 16
+  image_range: [0, 1]
+  model1: 'diff_add'
+  model2: 'ijepa'
+  model1_config:
+    model: "stabilityai/sdxl-turbo"
+    layers: [1] #[1, 4, 7]
+    step: 101
+  model2_config:
+    layers: [31]
 
 ############ Ensemble ############
 

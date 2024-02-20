@@ -1,5 +1,6 @@
 import torch
 from .base import CacheModel
+from torch.nn.functional import interpolate
 
 class DINO(CacheModel):
     """
@@ -29,6 +30,9 @@ class DINO(CacheModel):
         self.extractor = torch.hub.load(repo, model)
 
     def get_features(self, image, category=None):
+        # REMOVE later
+        #image = interpolate(image, size=(336, 336), mode='bilinear')
+
         b = image.shape[0]
         h = image.shape[2] // self.patch_size
         w = image.shape[3] // self.patch_size

@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-def display_image_pair(image_pair, show_bbox=False):
+def display_image_pair(image_pair, show_bbox=False, labels=None):
     """
     Display an image pair with keypoints and bounding boxes (optional).
 
@@ -29,11 +29,24 @@ def display_image_pair(image_pair, show_bbox=False):
     # Get a list of colors from the 'tab20' colormap which has 20 distinct colors
     colors = plt.cm.tab20.colors
 
-    # Draw lines between the keypoints, ensuring the target points are offset correctly
-    for i, (sp, tp) in enumerate(zip(source_points, target_points)):
+    def print_line(i, sp, tp):
         ax.plot([sp[0], tp[0] + offset], # x-coordinates
                 [source_image.size[1] - sp[1], target_image.size[1] - tp[1]], # y-coordinates (inverted)
                 color=colors[i % len(colors)]) # colour
+
+    # Draw lines between the keypoints, ensuring the target points are offset correctly
+    if isinstance(target_points, list):
+        for j in range(len(target_points)):
+            for i, (sp, tp) in enumerate(zip(source_points, target_points[j])):
+                print_line(j, sp, tp)
+    else:
+        for i, (sp, tp) in enumerate(zip(source_points, target_points)):
+            print_line(i, sp, tp)
+
+    # Add labels to legend
+    if labels is not None:
+        for i, label in enumerate(labels):
+            ax.plot([], [], color=colors[i], label=label)
 
     # Draw the bounding boxes if required
     if show_bbox:
@@ -55,6 +68,10 @@ def display_image_pair(image_pair, show_bbox=False):
 
     # Disable the axis labels
     ax.axis('off')
+
+    # Plot legend if labels are provided
+    if labels is not None:
+        ax.legend()
 
     # Show the plot
     plt.show()

@@ -297,7 +297,21 @@ for image in tqdm.tqdm(images):
             continue
         if (image['image_path'], matching_image['image_path']) in combined_images:
             continue
+        
+        common_non_unique_parts = set(image['non_unique_parts']) & set(matching_image['non_unique_parts'])
 
+        # Initialize lists to hold matched indices
+        matched_source_indices = []
+        matched_target_indices = []
+
+        # For each common non-unique part, find its index in both images' parts
+        # If a part occurs more than once in one image, only the first occurrence is used
+        for part in common_non_unique_parts:
+            source_index = image['parts'].index(part)
+            target_index = matching_image['parts'].index(part)
+            matched_source_indices.append(source_index)
+            matched_target_indices.append(target_index)
+                
         # Add to benchmark dataset
         # Source parts are the indices parts from the source image, which are also present in the target image
         # Target parts are the indices parts from the target image, which are also present in the source image
@@ -310,8 +324,8 @@ for image in tqdm.tqdm(images):
             "target_bbox": matching_image['bbox'],
             "source_annotation_path": image['image_path'].replace(".jpg", ".npy"),
             "target_annotation_path": matching_image['image_path'].replace(".jpg", ".npy"),
-            "source_parts": [i for i, part in enumerate(image['parts']) if part in image['non_unique_parts'] and matching_image['non_unique_parts']],
-            "target_parts": [i for i, part in enumerate(matching_image['parts']) if part in image['non_unique_parts'] and matching_image['non_unique_parts']]
+            "source_parts": matched_source_indices,
+            "target_parts": matched_target_indices
         })
         combined_images[(image['image_path'], matching_image['image_path'])] = True
         combined_images[(matching_image['image_path'], image['image_path'])] = True
