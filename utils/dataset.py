@@ -171,14 +171,15 @@ class Preprocessor:
         rescale_data (bool): Whether to rescale points and bounding boxes (also sets source_size and target_size to image_size)
     """
 
-    def __init__(self, image_size, preprocess_image=True, image_range=[-1, 1], rescale_data=True):
+    def __init__(self, image_size, preprocess_image=True, image_range=[-1, 1], rescale_data=True, normalize_image=False):
         self.image_size = image_size
         self.preprocess_image = preprocess_image
         self.image_range = image_range
         self.rescale_data = rescale_data
+        self.normalize_image = normalize_image
 
     def process_image(self, image):
-        return preprocess_image(image, self.image_size, range=self.image_range)
+        return preprocess_image(image, self.image_size, range=self.image_range, norm=self.normalize_image)
 
     def __call__(self, sample):
         source_size = sample['source_size']

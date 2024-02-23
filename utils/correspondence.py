@@ -1,6 +1,6 @@
 import torch
 from torchvision.transforms import ToTensor
-from torch.nn.functional import interpolate
+from torch.nn.functional import interpolate, normalize
 from PIL import Image
 import einops
 
@@ -62,7 +62,7 @@ def rescale_bbox(bbox, old_size, new_size):
     bbox = torch.multiply(bbox, torch.tensor([x_scale, y_scale, x_scale, y_scale]))
     return bbox
 
-def preprocess_image(image_pil, size, range=[-1, 1]):
+def preprocess_image(image_pil, size, range=[-1, 1], norm=False):
     """
     Convert PIL image to tensor and normalize to [-1, 1].
 
@@ -70,12 +70,15 @@ def preprocess_image(image_pil, size, range=[-1, 1]):
         image_pil (PIL.Image): Image to preprocess
         size (tuple): (width, height)
         range (tuple): (min, max)
+        norm (bool): Whether to normalize image
 
     Returns:
         torch.Tensor: [C, H, W]
     """
     image_pil = image_pil.convert('RGB').resize(size, Image.BILINEAR)
     image = ToTensor()(image_pil) # [C, H, W] and range [0, 1]
+    if norm:
+        image = normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711)), # ImageNet mean and std
     image = image * (range[1] - range[0]) + range[0] # range [min, max]
     return image
 

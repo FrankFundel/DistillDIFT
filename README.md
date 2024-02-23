@@ -11,28 +11,12 @@ _To be continued..._
 
 ### Training
 1. Implement no-teacher train loop
-2. Train supervised on SPair-71k (no-teacher):
-    1. SD, fine-tune, cross-entropy loss on softmax
-    2. SD, fine-tune, MSE
-    3. DINO, fine-tune, cross-entropy loss on softmax
-    4. DINO, fine-tune, MSE
-    5. SD, LoRA, cross-entropy loss on softmax
-    6. SD, LoRA, MSE
-    7. DINO, LoRA, cross-entropy loss on softmax
-    8. DINO, LoRA, MSE
-    9. SD, no LoRA, no fine-tune, only Upscaler, cross-entropy loss on softmax
-    10. SD, no LoRA, no fine-tune, only Upscaler, MSE
-    11. (DINO, no LoRA, no fine-tune, only Upscaler, cross-entropy loss on softmax)
-    12. (DINO, no LoRA, no fine-tune, only Upscaler, MSE)
+2. Train DINO supervised on SPair-71k train or MISC210K split (no teacher)
 3. Implement strategies: Foreground and Random Point Sampling
-3. Train unsupervised on ImageNet (with teacher):
-    1. Best performing model from 2. on foreground with random point sampling, cross-entropy loss on softmax
-    2. Best performing model from 2. on foreground with random point sampling, MSE
-    3. Best performing model from 2. on foreground, MSE
-    4. Best performing model from 2. on full, MSE
+4. Distill supervised on SPair-71k train split or MISC210K (with teacher)
+5. Distill unsupervised on ImageNet (with teacher)
 
 - Make sure there are no unnecessary gradients and everything is in eval mode and fp16
-- Use kernel softmax for cross-entropy loss
 - Apply LoRA to different layers
 - Cache features from teacher
 - Implement sharded dataset
@@ -87,4 +71,6 @@ _To be continued..._
 
 - Dataset demo: `notebooks/dataset_demo.ipynb`
 - Evaluation demo: `notebooks/eval_demo.ipynb`
+- S2K Benchmark demo: `notebooks/s2k_demo.ipynb`
 - Qualitative analysis: `notebooks/qualitative_analysis.ipynb`
+- Quantitative analysis: `notebooks/quantitative_analysis.ipynb`

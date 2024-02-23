@@ -17,8 +17,6 @@ CUB-200-2011:
 
 S2K:
   path: "/export/group/datasets/PASCAL-Part"
-  random_sampling: true
-  num_samples: 1000
   only_non_unique: true
 
 ############ Image Datasets ############

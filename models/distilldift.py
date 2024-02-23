@@ -107,7 +107,7 @@ class DistillDIFT(CacheModel):
             for p in ll.parameters():
                 if p.requires_grad:
                     self.params_to_optimize.append(p)
-                    
+    
     def forward(self, image, category):
         return self.get_features(image, category)
 

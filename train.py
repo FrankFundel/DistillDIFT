@@ -7,17 +7,18 @@ from accelerate import Accelerator
 from accelerate.utils import ProjectConfiguration
 
 import torch.utils.data as data
-from torchvision.transforms import Compose, Resize, Normalize, ToTensor
 from torch.nn.functional import interpolate
+import torch.nn as nn
+import torch.nn.functional as F
 
 from utils.dataset import read_dataset_config, load_dataset, Preprocessor
 from utils.model import read_model_config, load_model
-from utils.correspondence import points_to_idxs, flatten_features, rescale_points
+from utils.correspondence import points_to_idxs, flatten_features, normalize_features, rescale_points
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_epochs, strategy, accelerator):
-    #teacher.eval()
+def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator, strategy):
+    teacher.eval()
     student.train()
 
     epoch_loss = []
@@ -32,7 +33,7 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
             with accelerator.accumulate(student):
                 # Concatenate images
                 images = torch.cat([batch['source_image'], batch['target_image']], dim=0)
-                categories = batch['category'] * 2 #batch['source_category'] + batch['target_category']  #batch['category'] * 2
+                categories = batch['source_category'] + batch['target_category']
 
                 # Run through model
                 with torch.no_grad():
@@ -40,7 +41,7 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
                 student_features = student(images, categories)
 
                 student_features = interpolate(student_features, teacher_features.shape[-2:], mode="bilinear") # this could eventually be replaced by a trainable upscaler
-                #teacher_features = interpolate(teacher_features, student_features.shape[-2:], mode="bilinear") # maybe this is better/fairer
+                teacher_features = interpolate(teacher_features, student_features.shape[-2:], mode="bilinear") # maybe this is better/fairer
 
                 # Normalize features
                 student_source_features = torch.nn.functional.normalize(student_features[:len(student_features) // 2], dim=-1).flatten(2)
@@ -52,43 +53,6 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
                 if strategy == 'full':
                     student_similarity = student_source_features.transpose(-2, -1) @ student_target_features
                     teacher_similarity = teacher_source_features.transpose(-2, -1) @ teacher_target_features
-
-                    visualize = True
-                    if visualize:
-                        import matplotlib.pyplot as plt
-                        
-                        fig, ax = plt.subplots(2, len(student_source_features))
-                        h, w = batch['source_image'].shape[2], batch['source_image'].shape[3]
-                        for b in range(len(student_source_features)):
-                            ax[0, b].imshow(batch['source_image'][b].permute(1, 2, 0).clamp(0, 1).cpu().detach())
-                            ax[1, b].imshow(batch['target_image'][b].permute(1, 2, 0).clamp(0, 1).cpu().detach())
-                            #source_points = torch.tensor(batch['source_points'][b]).unsqueeze(0)
-                            #source_points = rescale_points(source_points.cpu(), (h, w), student_features.shape[-2:])
-                            #rand_i = points_to_idxs(source_points, student_features.shape[-2:])[0, 0].item()
-                            rand_i = 300 #torch.randint(0, student_source_features.shape[-1], (1,)).item()
-                            source_with_point = torch.zeros(teacher_features.shape[-2:])
-                            source_with_point[rand_i // student_features.shape[-2], rand_i % student_features.shape[-2]] = 1
-                            ax[0, b].imshow(interpolate(source_with_point.unsqueeze(0).unsqueeze(0), (h, w)).squeeze(0).squeeze(0), alpha=0.6)
-                            ax[1, b].imshow(interpolate(student_similarity[b, rand_i, :].reshape(student_features.shape[-2:]).cpu().detach().unsqueeze(0).unsqueeze(0), (h, w)).squeeze(0).squeeze(0), alpha=0.6)
-                            ax[0, b].axis('off')
-                            ax[1, b].axis('off')
-                        plt.savefig('student_similarity.png')
-
-                        fig, ax = plt.subplots(2, len(teacher_source_features))
-                        for b in range(len(teacher_source_features)):
-                            ax[0, b].imshow(batch['source_image'][b].permute(1, 2, 0).clamp(0, 1).cpu().detach())
-                            ax[1, b].imshow(batch['target_image'][b].permute(1, 2, 0).clamp(0, 1).cpu().detach())
-                            #source_points = torch.tensor(batch['source_points'][b]).unsqueeze(0)
-                            #source_points = rescale_points(source_points.cpu(), (h, w), student_features.shape[-2:])
-                            #rand_i = points_to_idxs(source_points, student_features.shape[-2:])[0, 0].item()
-                            rand_i = 300 #torch.randint(0, teacher_source_features.shape[-1], (1,)).item()
-                            source_with_point = torch.zeros(teacher_features.shape[-2:])
-                            source_with_point[rand_i // teacher_features.shape[-2], rand_i % teacher_features.shape[-2]] = 1
-                            ax[0, b].imshow(interpolate(source_with_point.unsqueeze(0).unsqueeze(0), (h, w)).squeeze(0).squeeze(0), alpha=0.6)
-                            ax[1, b].imshow(interpolate(teacher_similarity[b, rand_i, :].reshape(teacher_features.shape[-2:]).cpu().detach().unsqueeze(0).unsqueeze(0), (h, w)).squeeze(0).squeeze(0), alpha=0.6)
-                            ax[0, b].axis('off')
-                            ax[1, b].axis('off')
-                        plt.savefig('teacher_similarity.png')
                 elif strategy == 'ground_truth':
                     pass
                 # bounding box, foreground, random sampling, etc.
@@ -114,7 +78,7 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
                 epoch_loss.append(loss.item())
 
                 # Update progress bar
-                pbar.update(1) # TODO: maybe this should just be 1
+                pbar.update(1)
                 pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
 
                 # Save model if loss is lowest
@@ -128,8 +92,144 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
     # Log end of training
     accelerator.end_training()
 
-def train(model, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator):
-    pass
+def soft_argmax(logits, beta=1.0):
+    """
+    Compute the soft-argmax of a tensor.
+    
+    Parameters:
+    - logits: A tensor of logits.
+    - beta: A scalar controlling the sharpness of the output distribution. Higher values make the distribution closer to argmax.
+    
+    Returns:
+    - A tensor representing the soft-argmax of the input.
+    """
+    weights = torch.softmax(beta * logits, dim=-1)
+    indices = torch.arange(logits.size(-1), device=logits.device, dtype=logits.dtype)
+    soft_argmax_val = torch.sum(weights * indices, dim=-1)
+    return soft_argmax_val
+
+class CLIPContrastiveLoss(nn.Module):
+    def __init__(self, tau=0.07):
+        super(CLIPContrastiveLoss, self).__init__()
+        self.tau = tau
+
+    def forward(self, similarity_matrix):
+        similarity_matrix = similarity_matrix / self.tau
+
+        # Generate labels for matching pairs
+        labels = torch.arange(similarity_matrix.size(0), device=similarity_matrix.device)
+
+        # Compute loss for image-to-text and text-to-image
+        loss_i2t = F.cross_entropy(similarity_matrix.transpose(0, 1), labels, reduction="mean")
+        loss_t2i = F.cross_entropy(similarity_matrix, labels, reduction="mean")
+
+        # Return the average of both losses
+        return (loss_i2t + loss_t2i) / 2
+
+class SymmetricCrossEntropyLoss(nn.Module):
+    def __init__(self, alpha=1.0, beta=1.0):
+        super(SymmetricCrossEntropyLoss, self).__init__()
+        self.alpha = alpha
+        self.beta = beta
+
+    def forward(self, predictions, targets):
+        # Standard cross-entropy loss
+        ce_loss = F.cross_entropy(predictions, targets.argmax(dim=1))
+
+        # Reverse cross-entropy loss
+        pred_prob = F.softmax(predictions, dim=1)
+        rce_loss = -torch.mean(torch.sum(targets * torch.log(pred_prob + 1e-7), dim=1))
+
+        # Symmetric loss
+        return self.alpha * ce_loss + self.beta * rce_loss
+    
+def train(model, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator, similarity_method):
+    model.train()
+
+    epoch_loss = []
+    min_loss = float('inf')
+
+    for epoch in range(num_epochs):
+        if accelerator.is_main_process:
+            print(f"Epoch {epoch+1}/{num_epochs}")
+        
+        pbar = tqdm(total=len(dataloader), disable=(not accelerator.is_main_process))
+        for i, batch in enumerate(dataloader):
+            with accelerator.accumulate(student):
+                # Concatenate images
+                images = torch.cat([batch['source_image'], batch['target_image']], dim=0)
+                categories = batch['source_category'] + batch['target_category']
+                source_points = batch['source_points']
+                target_points = batch['target_points']
+
+                # Run through model
+                features = model(images, categories)
+
+                features = interpolate(features, features.shape[-2:], mode="bilinear") # this could eventually be replaced by a trainable upscaler
+                
+                # Normalize features
+                source_features = features[:len(features) // 2]
+                target_features = features[len(features) // 2:]
+
+                # Prepare points
+                h, w = source_features.shape[-2:]
+                source_points = rescale_points(source_points, images.shape[-2:], (h, w)) # [B, N, 2]
+                source_idxs = points_to_idxs(source_points, (h, w)) # [B, N]
+                target_points = rescale_points(target_points, images.shape[-2:], (h, w)) # [B, N, 2]
+                target_idxs = points_to_idxs(target_points, (h, w)) # [B, N]
+
+                # Use source points to get features
+                source_features = flatten_features(source_features) # [B, HxW, C]
+                source_features = normalize_features(source_features) # [B, HxW, C]
+                source_features = source_features[torch.arange(source_features.shape[0])[:, None], source_idxs] # [B, N, C]
+                
+                # Calculate similarity map
+                target_features = flatten_features(target_features) # [B, HxW, C]
+                target_features = normalize_features(target_features) # [B, HxW, C]
+                similarity_map = source_features @ target_features.transpose(1, 2) # [B, N, HxW]
+
+                if similarity_method == 'softmax': # cross-entropy
+                    prediction = torch.nn.functional.softmax(similarity_map, dim=-1) # [B, N, HxW]
+                    target = torch.nn.functional.one_hot(target_idxs, num_classes=similarity_map.shape[-1]) # [B, N, HxW]
+                    # TODO: perturb target
+                elif similarity_method == 'soft_argmax': # MSE
+                    prediction = soft_argmax(similarity_map, beta=1.0) # [B, N]
+                    target = target_idxs # [B, N]
+                    # TODO: perturb target
+                elif similarity_method == 'contrastive': # CLIP symmetric contrastive loss
+                    prediction = source_features # [B, N, C]
+                    target = target_features[torch.arange(target_features.shape[0])[:, None], target_idxs] # [B, N, C]
+
+                # Calculate loss
+                loss = criterion(prediction, target)
+
+                # Backpropagate loss
+                optimizer.zero_grad()
+                accelerator.backward(loss)
+                optimizer.step()
+                scheduler.step()
+
+                # Logging
+                accelerator.log({
+                    "loss": loss,
+                    "learning_rate": scheduler.get_last_lr()[0],
+                }, step=i + len(dataloader) * epoch)
+                epoch_loss.append(loss.item())
+
+                # Update progress bar
+                pbar.update(1)
+                pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
+
+                # Save model if loss is lowest
+                if i > 0 and i % 100 == 0:
+                    mean_loss = sum(epoch_loss) / len(epoch_loss)
+                    if mean_loss < min_loss:
+                        min_loss = mean_loss
+                        accelerator.save_state('checkpoints/best_model', safe_serialization=False) # use model_name
+        pbar.close()
+    
+    # Log end of training
+    accelerator.end_training()
 
 def signal_handler(accelerator):
     def fn(signal, frame):
@@ -166,11 +266,17 @@ if __name__ == '__main__':
     num_epochs = model_config.get('num_epochs', 100)
     learning_rate = model_config.get('learning_rate', 1e-4)
     gradient_accumulation_steps = model_config.get('gradient_accumulation_steps', 1)
+    mode = model_config.get('mode', 'train')
     strategy = model_config.get('strategy', 'full')
+    similarity_method = model_config.get('similarity_method', 'softmax')
+    loss_function = model_config.get('loss_function', 'cross_entropy')
 
-    # Load model
-    teacher = load_model(model_config['teacher_name'], model_config['teacher_config'])
-    student = load_model(model_config['student_name'], model_config['student_config'])
+    # Load model(s)
+    if mode == 'distill':
+        teacher = load_model(model_config['teacher_name'], model_config['teacher_config'])
+        student = load_model(model_config['student_name'], model_config['student_config'])
+    elif mode == 'train':
+        student = load_model(model_name, model_config)
 
     # Load dataset config
     dataset_config = read_dataset_config(dataset_config)
@@ -179,12 +285,7 @@ if __name__ == '__main__':
     config = dataset_config[dataset_name]
     random_sampling = config.get('random_sampling', False)
 
-    #preprocess = Preprocessor(image_size, rescale_data=False)
-    preprocess = Compose([
-        Resize(image_size),
-        ToTensor(),
-        Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711)), # ImageNet mean and std
-    ])
+    preprocess = Preprocessor(image_size, rescale_data=True, normalize_image=(mode == 'distill'))
     dataset = load_dataset(dataset_name, config, preprocess)
     dataset.image_pair = True
 
@@ -206,9 +307,15 @@ if __name__ == '__main__':
     
     # Create criterion and optimizer
     learning_rate = gradient_accumulation_steps * learning_rate
-    params = student.params_to_optimize if student.params_to_optimize else student.parameters()
-    #criterion = torch.nn.CrossEntropyLoss()
-    criterion = torch.nn.MSELoss()
+    params = student.params_to_optimize if hasattr(student, "params_to_optimize") else student.parameters()
+    if loss_function == 'cross_entropy':
+        criterion = torch.nn.CrossEntropyLoss()
+    elif loss_function == 'mse':
+        criterion = torch.nn.MSELoss()
+    elif loss_function == 'contrastive':
+        criterion = CLIPContrastiveLoss()
+    elif loss_function == 'symmetric':
+        criterion = SymmetricCrossEntropyLoss()
     optimizer = torch.optim.Adam(params, lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs * len(dataloader))
 
@@ -218,19 +325,30 @@ if __name__ == '__main__':
     ),
     mixed_precision="bf16",
     gradient_accumulation_steps=gradient_accumulation_steps)
-    accelerator.init_trackers(model_name, config={
-        "teacher_name": model_config['teacher_name'],
-        "student_name": model_config['student_name'],
+    tracker_config = {
         "dataset_name": dataset_name,
         "learning_rate": learning_rate,
         "num_epochs": num_epochs,
         "batch_size": batch_size,
         "image_size": str(image_size),
         "gradient_accumulation_steps": gradient_accumulation_steps,
-        # loss function, method, scheduler etc.
-    })
-    teacher, student, optimizer, scheduler, dataloader = accelerator.prepare(teacher, student, optimizer, scheduler, dataloader)
-    accelerator.register_for_checkpointing(student) #, optimizer, scheduler)
+        "mode": mode,
+        "strategy": strategy,
+        "similarity_method": similarity_method,
+        "loss_function": loss_function,
+        # scheduler etc.
+    }
+    if mode == 'distill':
+        tracker_config["teacher_name"] = model_config['teacher_name']
+        tracker_config["student_name"] = model_config['student_name']
+        teacher, student, optimizer, scheduler, dataloader = accelerator.prepare(teacher, student, optimizer, scheduler, dataloader)
+        accelerator.register_for_checkpointing(student) #, optimizer, scheduler)
+    elif mode == 'train':
+        tracker_config["model_name"] = model_name
+        student, optimizer, scheduler, dataloader = accelerator.prepare(student, optimizer, scheduler, dataloader)
+        accelerator.register_for_checkpointing(student) #, optimizer, scheduler)
+
+    accelerator.init_trackers(model_name, config=tracker_config)
     if checkpoint is not None:
         accelerator.load_state(checkpoint)
 
@@ -241,7 +359,10 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, signal_handler)
 
     # Run training
-    distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_epochs, strategy, accelerator)
+    if mode == 'distill':
+        distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator, strategy)
+    elif mode == 'train':
+        train(student, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator, similarity_method)
 
     if accelerator.is_main_process:
         print(f"\n{'='*30} Finished {'='*30}\n")

@@ -1,7 +1,27 @@
 # Configuration file for the models
 # See README.md for more details
 
-############ Single Teacher ############
+############ Training ############
+
+dinov2:
+  image_size: [336, 336]
+  batch_size: 64
+  version: 2
+  model_size: 'b'
+  patch_size: 14
+  registers: true
+  image_range: [0, 1]
+  layers: [11]
+
+  batch_size: 32
+  num_epochs: 25
+  learning_rate: 0.001
+  gradient_accumulation_steps: 1
+  mode: "train"
+  similarity_method: "softmax"
+  loss_function: "cross_entropy"
+
+############ Distillation ############
 
 distilldift_1:
   teacher_name: "combination_add"

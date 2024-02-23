@@ -31,7 +31,7 @@ class DINO(CacheModel):
 
     def get_features(self, image, category=None):
         # REMOVE later
-        #image = interpolate(image, size=(336, 336), mode='bilinear')
+        # image = interpolate(image, size=(336, 336), mode='bilinear')
 
         b = image.shape[0]
         h = image.shape[2] // self.patch_size
@@ -44,3 +44,6 @@ class DINO(CacheModel):
             features = self.extractor.get_intermediate_layers(image, num_layers_from_bottom, return_class_token=False)
         
         return [features[l - min(self.layers)].permute(0, 2, 1).reshape(b, -1, h, w) for l in self.layers]
+
+    def forward(self, image, category=None):
+        return self.get_features(image)[0]
