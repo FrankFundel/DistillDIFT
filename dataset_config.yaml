@@ -5,6 +5,7 @@
 
 SPair-71k:
   path: "/export/group/datasets/SPair-71k"
+  random_sampling: true
 
 PF-WILLOW:
   path: "/export/home/ra63des/DistillDIFT/data/PF-WILLOW"
@@ -24,6 +25,7 @@ S2K:
 ImageNet:
   path: "/export/group/datasets/ILSVRC"
   random_sampling: true
+  normalize_image: true
 
 PASCALPart:
   path: "/export/group/datasets/PASCAL-Part"

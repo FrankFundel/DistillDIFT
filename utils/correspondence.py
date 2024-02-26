@@ -42,7 +42,7 @@ def rescale_points(points, old_size, new_size):
     """
     x_scale = new_size[0] / old_size[0]
     y_scale = new_size[1] / old_size[1]
-    points = torch.multiply(points, torch.tensor([x_scale, y_scale]))
+    points = torch.multiply(points, torch.tensor([x_scale, y_scale], device=points.device))
     return points
 
 def rescale_bbox(bbox, old_size, new_size):
@@ -59,7 +59,7 @@ def rescale_bbox(bbox, old_size, new_size):
     """
     x_scale = new_size[0] / old_size[0]
     y_scale = new_size[1] / old_size[1]
-    bbox = torch.multiply(bbox, torch.tensor([x_scale, y_scale, x_scale, y_scale]))
+    bbox = torch.multiply(bbox, torch.tensor([x_scale, y_scale, x_scale, y_scale], device=bbox.device))
     return bbox
 
 def preprocess_image(image_pil, size, range=[-1, 1], norm=False):

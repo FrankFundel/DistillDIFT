@@ -50,7 +50,7 @@ class SPair(CorrespondenceDataset):
 
     def load_data(self):
         images_dir = os.path.join(self.dataset_directory, 'JPEGImages')
-        annotations_dir = os.path.join(self.dataset_directory, 'PairAnnotation', self.split)
+        annotations_dir = os.path.join(self.dataset_directory, 'PairAnnotation', 'test' if self.split == 'test' else 'trn')
         annotations_files = [f for f in os.listdir(annotations_dir) if f.endswith('.json')]
 
         data = []

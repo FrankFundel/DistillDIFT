@@ -16,7 +16,7 @@ from models.prompt import Prompt
 from models.dit import DiT
 from models.ijepa import IJEPA
 
-from models.distilldift import DistillDIFT
+from models.distilled_model import DistilledModel
 
 def read_model_config(config_path):
     """
@@ -81,7 +81,7 @@ def load_model(model_name, config):
         return Prompt(config)
     
     # Distillation models
-    if model_name.startswith('distilldift'):
-        return DistillDIFT(config)
+    if model_name.startswith('distilled'):
+        return DistilledModel(config)
 
     raise ValueError('Model not recognized.')

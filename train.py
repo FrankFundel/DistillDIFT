@@ -10,12 +10,15 @@ import torch.utils.data as data
 from torch.nn.functional import interpolate
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 
 from utils.dataset import read_dataset_config, load_dataset, Preprocessor
 from utils.model import read_model_config, load_model
 from utils.correspondence import points_to_idxs, flatten_features, normalize_features, rescale_points
 
 torch.backends.cuda.matmul.allow_tf32 = True
+from accelerate import DistributedDataParallelKwargs
+
 
 def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator, strategy):
     teacher.eval()
@@ -92,78 +95,73 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
     # Log end of training
     accelerator.end_training()
 
-def soft_argmax(logits, beta=1.0):
+def softmax_with_temperature(logits, temperature=1.0):
     """
-    Compute the soft-argmax of a tensor.
-    
+    Apply the softmax function with temperature on logits.
+
     Parameters:
-    - logits: A tensor of logits.
-    - beta: A scalar controlling the sharpness of the output distribution. Higher values make the distribution closer to argmax.
+    - logits (torch.Tensor): The input tensor for which the softmax is to be computed.
+    - temperature (float, optional): The temperature parameter to adjust the smoothness of the output. Default is 1.0.
     
     Returns:
-    - A tensor representing the soft-argmax of the input.
+    - torch.Tensor: The softmax probabilities with applied temperature.
     """
-    weights = torch.softmax(beta * logits, dim=-1)
-    indices = torch.arange(logits.size(-1), device=logits.device, dtype=logits.dtype)
-    soft_argmax_val = torch.sum(weights * indices, dim=-1)
-    return soft_argmax_val
-
-class CLIPContrastiveLoss(nn.Module):
-    def __init__(self, tau=0.07):
-        super(CLIPContrastiveLoss, self).__init__()
-        self.tau = tau
-
-    def forward(self, similarity_matrix):
-        similarity_matrix = similarity_matrix / self.tau
-
-        # Generate labels for matching pairs
-        labels = torch.arange(similarity_matrix.size(0), device=similarity_matrix.device)
-
-        # Compute loss for image-to-text and text-to-image
-        loss_i2t = F.cross_entropy(similarity_matrix.transpose(0, 1), labels, reduction="mean")
-        loss_t2i = F.cross_entropy(similarity_matrix, labels, reduction="mean")
-
-        # Return the average of both losses
-        return (loss_i2t + loss_t2i) / 2
-
-class SymmetricCrossEntropyLoss(nn.Module):
-    def __init__(self, alpha=1.0, beta=1.0):
-        super(SymmetricCrossEntropyLoss, self).__init__()
-        self.alpha = alpha
-        self.beta = beta
-
-    def forward(self, predictions, targets):
-        # Standard cross-entropy loss
-        ce_loss = F.cross_entropy(predictions, targets.argmax(dim=1))
-
-        # Reverse cross-entropy loss
-        pred_prob = F.softmax(predictions, dim=1)
-        rce_loss = -torch.mean(torch.sum(targets * torch.log(pred_prob + 1e-7), dim=1))
-
-        # Symmetric loss
-        return self.alpha * ce_loss + self.beta * rce_loss
+    # Adjust the logits based on the temperature
+    scaled_logits = logits / temperature
+    # Compute softmax on the scaled logits
+    softmax_probs = F.softmax(scaled_logits, dim=-1)
     
+    return softmax_probs
+
+def softargmax2d(input, beta=100):
+    *_, h, w = input.shape
+
+    input = input.reshape(*_, h * w)
+    input = nn.functional.softmax(beta * input, dim=-1)
+
+    indices_c, indices_r = torch.meshgrid(
+        torch.linspace(0, 1, w),
+        torch.linspace(0, 1, h),
+        indexing='xy'
+    )
+
+    indices_r = indices_r.reshape(-1, h * w).to(input.device)
+    indices_c = indices_c.reshape(-1, h * w).to(input.device)
+
+    result_r = torch.sum((h - 1) * input * indices_r, dim=-1)
+    result_c = torch.sum((w - 1) * input * indices_c, dim=-1)
+
+    result = torch.stack([result_r, result_c], dim=-1)
+
+    return result
+
+def softargmax1d(input, beta=100):
+    *_, n = input.shape
+    input = nn.functional.softmax(beta * input, dim=-1)
+    indices = torch.linspace(0, 1, n, device=input.device)
+    result = torch.sum((n - 1) * input * indices, dim=-1)
+    return result
+
 def train(model, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator, similarity_method):
     model.train()
 
-    epoch_loss = []
     min_loss = float('inf')
 
     for epoch in range(num_epochs):
         if accelerator.is_main_process:
             print(f"Epoch {epoch+1}/{num_epochs}")
         
+        epoch_loss = []
         pbar = tqdm(total=len(dataloader), disable=(not accelerator.is_main_process))
         for i, batch in enumerate(dataloader):
-            with accelerator.accumulate(student):
+            with accelerator.accumulate(model):
                 # Concatenate images
                 images = torch.cat([batch['source_image'], batch['target_image']], dim=0)
-                categories = batch['source_category'] + batch['target_category']
                 source_points = batch['source_points']
                 target_points = batch['target_points']
 
                 # Run through model
-                features = model(images, categories)
+                features = model(images)
 
                 features = interpolate(features, features.shape[-2:], mode="bilinear") # this could eventually be replaced by a trainable upscaler
                 
@@ -189,16 +187,16 @@ def train(model, dataloader, criterion, optimizer, scheduler, num_epochs, accele
                 similarity_map = source_features @ target_features.transpose(1, 2) # [B, N, HxW]
 
                 if similarity_method == 'softmax': # cross-entropy
-                    prediction = torch.nn.functional.softmax(similarity_map, dim=-1) # [B, N, HxW]
-                    target = torch.nn.functional.one_hot(target_idxs, num_classes=similarity_map.shape[-1]) # [B, N, HxW]
-                    # TODO: perturb target
+                    prediction = softmax_with_temperature(similarity_map, temperature=0.04) # [B, N, HxW]
+                    prediction = prediction.reshape(*prediction.shape[:2], h, w) # [B, N, H, W]
+                    target = F.one_hot(target_idxs, num_classes=similarity_map.shape[-1]).type(prediction.dtype) # [B, N, HxW]
+                    target = target.reshape(*target.shape[:2], h, w) # [B, N, H, W]
+                    target = torchvision.transforms.functional.gaussian_blur(target, kernel_size=7) # gaussian smooth target with kernel size 7
                 elif similarity_method == 'soft_argmax': # MSE
-                    prediction = soft_argmax(similarity_map, beta=1.0) # [B, N]
-                    target = target_idxs # [B, N]
+                    similarity_map = similarity_map.reshape(*similarity_map.shape[:2], h, w) # [B, N, H, W]
+                    prediction = softargmax2d(similarity_map, beta=1000.0) # [B, N, 2]
+                    target = target_points # [B, N, 2]
                     # TODO: perturb target
-                elif similarity_method == 'contrastive': # CLIP symmetric contrastive loss
-                    prediction = source_features # [B, N, C]
-                    target = target_features[torch.arange(target_features.shape[0])[:, None], target_idxs] # [B, N, C]
 
                 # Calculate loss
                 loss = criterion(prediction, target)
@@ -221,7 +219,7 @@ def train(model, dataloader, criterion, optimizer, scheduler, num_epochs, accele
                 pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
 
                 # Save model if loss is lowest
-                if i > 0 and i % 100 == 0:
+                if i > 0 and i % 1000 == 0:
                     mean_loss = sum(epoch_loss) / len(epoch_loss)
                     if mean_loss < min_loss:
                         min_loss = mean_loss
@@ -283,9 +281,11 @@ if __name__ == '__main__':
 
     # Load dataset parameters
     config = dataset_config[dataset_name]
+    config['split'] = 'train'
     random_sampling = config.get('random_sampling', False)
+    normalize_image = config.get('normalize_image', False)
 
-    preprocess = Preprocessor(image_size, rescale_data=True, normalize_image=(mode == 'distill'))
+    preprocess = Preprocessor(image_size, rescale_data=True, normalize_image=normalize_image)
     dataset = load_dataset(dataset_name, config, preprocess)
     dataset.image_pair = True
 
@@ -295,6 +295,8 @@ if __name__ == '__main__':
         for key in batch[0].keys():
             output[key] = [sample[key] for sample in batch]
             if key in ['source_image', 'target_image']:
+                output[key] = torch.stack(output[key])
+            if key in ['source_points', 'target_points']:
                 output[key] = torch.stack(output[key])
         return output
 
@@ -307,24 +309,23 @@ if __name__ == '__main__':
     
     # Create criterion and optimizer
     learning_rate = gradient_accumulation_steps * learning_rate
-    params = student.params_to_optimize if hasattr(student, "params_to_optimize") else student.parameters()
     if loss_function == 'cross_entropy':
         criterion = torch.nn.CrossEntropyLoss()
     elif loss_function == 'mse':
         criterion = torch.nn.MSELoss()
-    elif loss_function == 'contrastive':
-        criterion = CLIPContrastiveLoss()
-    elif loss_function == 'symmetric':
-        criterion = SymmetricCrossEntropyLoss()
-    optimizer = torch.optim.Adam(params, lr=learning_rate)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs * len(dataloader))
+    optimizer = torch.optim.AdamW(student.params_to_optimize, lr=learning_rate)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs * len(dataloader))
+    scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer)
+    #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=len(dataloader), gamma=0.1)
 
     accelerator = Accelerator(log_with="tensorboard", project_config=ProjectConfiguration(
         project_dir=".",
         logging_dir="logs"
     ),
-    mixed_precision="bf16",
-    gradient_accumulation_steps=gradient_accumulation_steps)
+    #mixed_precision="bf16",
+    gradient_accumulation_steps=gradient_accumulation_steps,
+    kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=False)])
+
     tracker_config = {
         "dataset_name": dataset_name,
         "learning_rate": learning_rate,

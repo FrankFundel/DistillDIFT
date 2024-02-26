@@ -239,21 +239,15 @@ prompt:
 
 ############ Distilled Models ############
 
-diff_add_baseline:
-  image_size: [518, 518]
+distilled_model:
+  image_size: [336, 336]
   batch_size: 64
-  model: "stabilityai/sdxl-turbo"
-  layers: [1]
-  step: 101
-
-distilldift_1:
-  image_size: [518, 518]
-  batch_size: 64
-  model: "stabilityai/sdxl-turbo"
-  weights: "/export/home/ra63des/DistillDIFT/checkpoints/best_model/pytorch_model_1.bin"
-  #layers: [1]
-  step: 101
-  rank: 16
+  image_range: [0, 1]
+  weights: "/export/home/ra63des/DistillDIFT/checkpoints/best_model/pytorch_model.bin"
+  rank: 8
+  lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  freeze: false
+  linear_head: false
 
 ############ Analysis ############
 

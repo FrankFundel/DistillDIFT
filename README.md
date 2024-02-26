@@ -16,8 +16,9 @@ _To be continued..._
 4. Distill supervised on SPair-71k train split or MISC210K (with teacher)
 5. Distill unsupervised on ImageNet (with teacher)
 
-- Make sure there are no unnecessary gradients and everything is in eval mode and fp16
-- Apply LoRA to different layers
+- Apply timm LoRA from vit-lora
+- Try 2D soft-argmax
+- Load DINO in fp16
 - Cache features from teacher
 - Implement sharded dataset
 
