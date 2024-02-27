@@ -187,16 +187,19 @@ def train(model, dataloader, criterion, optimizer, scheduler, num_epochs, accele
                 similarity_map = source_features @ target_features.transpose(1, 2) # [B, N, HxW]
 
                 if similarity_method == 'softmax': # cross-entropy
-                    prediction = softmax_with_temperature(similarity_map, temperature=0.04) # [B, N, HxW]
+                    temperature = 0.04 # temperature for softmax
+                    kernel_size = 7 # kernel size for blurring target
+                    prediction = softmax_with_temperature(similarity_map, temperature) # [B, N, HxW]
                     prediction = prediction.reshape(*prediction.shape[:2], h, w) # [B, N, H, W]
                     target = F.one_hot(target_idxs, num_classes=similarity_map.shape[-1]).type(prediction.dtype) # [B, N, HxW]
                     target = target.reshape(*target.shape[:2], h, w) # [B, N, H, W]
-                    target = torchvision.transforms.functional.gaussian_blur(target, kernel_size=7) # gaussian smooth target with kernel size 7
+                    target = torchvision.transforms.functional.gaussian_blur(target, kernel_size=kernel_size) # gaussian smooth target
                 elif similarity_method == 'soft_argmax': # MSE
+                    epsilon = 1.0 # shift target points [epsilon, -epsilon] pixels
+                    beta = 1000.0 # sharpness of angle of soft-argmax
                     similarity_map = similarity_map.reshape(*similarity_map.shape[:2], h, w) # [B, N, H, W]
-                    prediction = softargmax2d(similarity_map, beta=1000.0) # [B, N, 2]
-                    target = target_points # [B, N, 2]
-                    # TODO: perturb target
+                    prediction = softargmax2d(similarity_map, beta) # [B, N, 2]
+                    target = target_points + torch.randn_like(target_points) * epsilon # [B, N, 2]
 
                 # Calculate loss
                 loss = criterion(prediction, target)
@@ -314,17 +317,18 @@ if __name__ == '__main__':
     elif loss_function == 'mse':
         criterion = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(student.params_to_optimize, lr=learning_rate)
-    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs * len(dataloader))
     scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs * len(dataloader))
     #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=len(dataloader), gamma=0.1)
 
     accelerator = Accelerator(log_with="tensorboard", project_config=ProjectConfiguration(
-        project_dir=".",
-        logging_dir="logs"
-    ),
-    #mixed_precision="bf16",
-    gradient_accumulation_steps=gradient_accumulation_steps,
-    kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=False)])
+            project_dir=".",
+            logging_dir="logs"
+        ),
+        #mixed_precision="bf16",
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)]
+    )
 
     tracker_config = {
         "dataset_name": dataset_name,

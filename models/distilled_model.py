@@ -4,6 +4,7 @@ import math
 
 from .base import CacheModel
 
+# From https://github.com/JamesQFreeman/LoRA-ViT/blob/main/lora.py
 class LoRALayer(nn.Module):
     """In timm it is implemented as
     self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)

@@ -7,18 +7,17 @@ distilled_s:
   image_size: [336, 336]
   image_range: [0, 1]
   weights: null
-  rank: 8
+  rank: null #8
   lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-  freeze: false
   linear_head: false
 
   batch_size: 1
   num_epochs: 25
-  learning_rate: 0.0001 # 1e-4
+  learning_rate: 0.000001 # 0.0001 for LoRA and linear head, 0.00001 for full fine-tune, /10 for softmax with cross-entropy
   gradient_accumulation_steps: 1 #64 # 2048
   mode: "train"
-  similarity_method: "soft_argmax"
-  loss_function: "mse"
+  similarity_method: "softmax"
+  loss_function: "cross_entropy"
 
 ############ Distillation ############
 
