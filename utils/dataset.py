@@ -7,6 +7,7 @@ import torch
 import imagesize
 from PIL import Image
 import torch.utils.data as data
+from accelerate import Accelerator
 
 from datasets.correspondence import CorrespondenceDataset, SPair, PFWillow, CUB, S2K
 from datasets.image import ImageNet, PASCALPart
@@ -100,10 +101,14 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
         if hasattr(model, 'layers') and model.layers is not None:
             layers = [f.create_group(str(l)) if str(l) not in f else f[str(l)] for l in model.layers]
 
+        # Move model to device
+        model.to(device, dtype=torch.bfloat16 if half_precision else torch.float32)
+
         # Get features and save to cache file
         with torch.no_grad():
             for key, image, category in tqdm.tqdm(dataloader):
                 image = image.to(device, dtype=torch.bfloat16 if half_precision else torch.float32)
+
                 # Extend last batch if necessary
                 if len(key) < batch_size:
                     image = torch.cat([image, image[-1].repeat(batch_size-len(key), 1, 1, 1)])
@@ -113,7 +118,7 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
                 
                 def save_features(g, features):
                     for i, k in enumerate(key):
-                        g.create_dataset(k, data=features[i].type(torch.float16 if half_precision else torch.float32))
+                        g.create_dataset(k, data=features[i].type(torch.float16 if half_precision else torch.float32)) # bfloat26 not supported
 
                 if type(features) is list: # (l, b, c, h, w)
                     for l, layer in enumerate(layers):
@@ -136,6 +141,7 @@ class CacheDataset(CorrespondenceDataset):
         self.sample_points = getattr(dataset, 'sample_points', None)
         self.file = h5py.File(cache_path, 'r')
         self.cache = self.file
+        self.load_images = False
 
     def set_layer(self, layer):
         self.cache = self.file[str(layer)]
@@ -146,15 +152,24 @@ class CacheDataset(CorrespondenceDataset):
         if self.sample_points is not None:
             self.sample_points(sample)
 
-        # Get image size quickly
-        sample['source_size'] = imagesize.get(sample['source_image_path'])
-        sample['target_size'] = imagesize.get(sample['target_image_path'])
+        if self.load_images:
+            # Load image
+            sample['source_image'] = Image.open(sample['source_image_path'])
+            sample['target_image'] = Image.open(sample['target_image_path'])
+
+            # Save image size
+            sample['source_size'] = sample['source_image'].size
+            sample['target_size'] = sample['target_image'].size
+        else:
+            # Get image size quickly
+            sample['source_size'] = imagesize.get(sample['source_image_path'])
+            sample['target_size'] = imagesize.get(sample['target_image_path'])
 
         # Load features from cache
         source_key = os.path.basename(sample['source_image_path'])
         target_key = os.path.basename(sample['target_image_path'])
-        sample['source_image'] = torch.tensor(self.cache[source_key][()])
-        sample['target_image'] = torch.tensor(self.cache[target_key][()])
+        sample['source_features'] = torch.tensor(self.cache[source_key][()])
+        sample['target_features'] = torch.tensor(self.cache[target_key][()])
         
         if self.preprocess is not None:
             sample = self.preprocess(sample)

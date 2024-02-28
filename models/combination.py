@@ -24,7 +24,7 @@ class Combination(CacheModel):
         return self.get_features(image, category)
     
     def get_features(self, image, category):
-        features1 = self.model1.get_features(image * 2 - 1, category) # SD
+        features1 = self.model1.get_features(interpolate(image, (980, 980), mode='bilinear') * 2 - 1, category) # SD  # TODO: remove hardcoding
         if len(features1) == 1:
             features1 = features1[0]
         else:

@@ -10,16 +10,10 @@ _To be continued..._
 ## ⏳ ToDo
 
 ### Training
-1. Implement no-teacher train loop
-2. Train DINO supervised on SPair-71k train or MISC210K split (no teacher)
-3. Implement strategies: Foreground and Random Point Sampling
-4. Distill supervised on SPair-71k train split or MISC210K (with teacher)
-5. Distill unsupervised on ImageNet (with teacher)
-
-- Apply timm LoRA from vit-lora
-- Try 2D soft-argmax
-- Load DINO in fp16
-- Cache features from teacher
+- Implement strategies: Foreground and Random Point Sampling
+- Distill supervised on SPair-71k train split
+- Cache features on multiple GPUs into multiple files
+- Distill unsupervised on ImageNet
 - Implement sharded dataset
 
 ## 💼 Related Work
@@ -62,7 +56,8 @@ _To be continued..._
 
 ## 🔬 Training
 
-- Using accelerate: `accelerate launch --multi_gpu --num_processes 2 train.py distilldift_1`
+- Supervised Training: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_s --dataset_name SPair-71k`
+- Weakly-Supervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k`
 
 ## ⚗️ Distilled models
 

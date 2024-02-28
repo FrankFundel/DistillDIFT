@@ -25,12 +25,11 @@ def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=Fals
     distances = []
     
     for batch in dataloader:
-        # Load images or features on device
-        batch['source_image'] = batch['source_image'].to(device)
-        batch['target_image'] = batch['target_image'].to(device)
-        
-        # Run through model
         if use_cache:
+            # Load features on device
+            batch['source_features'] = batch['source_features'].to(device)
+            batch['target_features'] = batch['target_features'].to(device)
+
             output = model.compute_correspondence(batch, return_histograms=save_histograms)
             if save_histograms:
                 predicted_points, hists = output
@@ -39,6 +38,11 @@ def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=Fals
                 predicted_points = output
             predicted_points = [p.cpu() for p in predicted_points]
         else:
+            # Load features on device
+            batch['source_image'] = batch['source_image'].to(device)
+            batch['target_image'] = batch['target_image'].to(device)
+
+            # Run through model
             predicted_points = model(batch)
 
         # Calculate PCK values
@@ -183,7 +187,7 @@ if __name__ == '__main__':
             output = {}
             for key in batch[0].keys():
                 output[key] = [sample[key] for sample in batch]
-                if key in ['source_image', 'target_image']:
+                if key in ['source_image', 'target_image', 'source_features', 'target_features']:
                     output[key] = torch.stack(output[key])
             return output
         

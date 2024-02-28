@@ -42,8 +42,8 @@ def rescale_points(points, old_size, new_size):
     """
     x_scale = new_size[0] / old_size[0]
     y_scale = new_size[1] / old_size[1]
-    points = torch.multiply(points, torch.tensor([x_scale, y_scale], device=points.device))
-    return points
+    scaled_points = torch.multiply(points, torch.tensor([x_scale, y_scale], device=points.device))
+    return scaled_points
 
 def rescale_bbox(bbox, old_size, new_size):
     """
@@ -59,8 +59,8 @@ def rescale_bbox(bbox, old_size, new_size):
     """
     x_scale = new_size[0] / old_size[0]
     y_scale = new_size[1] / old_size[1]
-    bbox = torch.multiply(bbox, torch.tensor([x_scale, y_scale, x_scale, y_scale], device=bbox.device))
-    return bbox
+    scaled_bbox = torch.multiply(bbox, torch.tensor([x_scale, y_scale, x_scale, y_scale], device=bbox.device))
+    return scaled_bbox
 
 def preprocess_image(image_pil, size, range=[-1, 1], norm=False):
     """
@@ -163,6 +163,23 @@ def points_to_idxs(points, size):
     idxs = w * torch.round(points_y).long() + torch.round(points_x).long()
     return idxs
 
+def idxs_to_points(idxs, size):
+    """
+    Convert indices to points.
+    
+    Args:
+        idxs (torch.Tensor): [B, N] where each point is an index
+        size (tuple): (height, width)
+    
+    Returns:    
+        torch.Tensor: [B, N, 2] where each point is (y, x)
+    """
+    h, w = size
+    points_y = idxs // w
+    points_x = idxs % w
+    points = torch.stack([points_y, points_x], dim=2)
+    return points
+
 def flatten_features(features):
     """
     Flatten features.
@@ -240,8 +257,8 @@ def compute_correspondence(source_features, target_features, source_points, sour
     similarity_map = source_features @ target_features.transpose(1, 2) # [B, N, HxW]
 
     # Get max similarity for each point and convert to coordinates (y, x)
-    predicted_idx = torch.argmax(similarity_map, dim=2) # [B, N]
-    predicted_points = torch.stack([predicted_idx // tw, predicted_idx % tw], dim=2) # [B, N, 2]
+    predicted_idx = torch.argmax(similarity_map, dim=-1) # [B, N]
+    predicted_points = idxs_to_points(predicted_idx, (th, tw)) # [B, N, 2]
 
     if not batch_mode:
         predicted_points = predicted_points.squeeze(0)
