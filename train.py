@@ -14,11 +14,10 @@ import torchvision
 from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Preprocessor
 from utils.model import read_model_config, load_model
 from utils.correspondence import points_to_idxs, idxs_to_points, flatten_features, normalize_features, rescale_points
-from utils.distillation import softmax_with_temperature, softargmax2d
+from utils.distillation import softmax_with_temperature, softargmax2d, separate_foreground, sample_points
 
 torch.backends.cuda.matmul.allow_tf32 = True
 from accelerate import DistributedDataParallelKwargs
-
 
 def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_epochs, accelerator, use_cache, sampling_method):
     teacher.eval()
@@ -47,76 +46,60 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
                         teacher_features = teacher(images, categories)
                 student_features = student(images, categories)
 
-                h, w = student_features.shape[-2:]
-                teacher_features = interpolate(teacher_features, images.shape[-2:], mode="bilinear")
-
+                # Interpolate teacher features for higher point density
+                if similarity_method == 'soft_argmax':
+                    teacher_features = interpolate(teacher_features, images.shape[-2:], mode="bilinear")
+                else:
+                    teacher_features = interpolate(teacher_features, student_features.shape[-2:], mode="bilinear")
+                
                 # Prepare features
-                student_source_features = flatten_features(normalize_features(student_features[:len(student_features) // 2])) # [B, HxW, C]
-                student_target_features = flatten_features(normalize_features(student_features[len(student_features) // 2:])) # [B, HxW, C]
-                teacher_source_features = flatten_features(normalize_features(teacher_features[:len(teacher_features) // 2])) # [B, HxW, C]
-                teacher_target_features = flatten_features(normalize_features(teacher_features[len(teacher_features) // 2:])) # [B, HxW, C]
+                _, SC, SH, SW = student_features.shape
+                _, TC, TH, TW = teacher_features.shape
+                B = student_features.shape[0] // 2
+                student_source_features = normalize_features(flatten_features(student_features[:B])) # [B, HxW, C]
+                student_target_features = normalize_features(flatten_features(student_features[B:])) # [B, HxW, C]
+                teacher_source_features = normalize_features(flatten_features(teacher_features[:B])) # [B, HxW, C]
+                teacher_target_features = normalize_features(flatten_features(teacher_features[B:])) # [B, HxW, C]
 
+                # Sample points
+                if sampling_method == 'foreground_stopgrad': # Full dot product, but only backprop through the foreground
+                    mask = separate_foreground(student_source_features).long()
+                    idxs = mask.nonzero(as_tuple=False)[:, 1].unsqueeze(0)
+                    student_source_features[torch.arange(B)[:, None], idxs].detach()
+                    mask = separate_foreground(student_target_features).long()
+                    idxs = mask.nonzero(as_tuple=False)[:, 1].unsqueeze(0)
+                    student_target_features[torch.arange(B)[:, None], idxs].detach()
+                else:
+                    idxs, points = sample_points(student_source_features, (B, SC, SH, SW), sampling_method,
+                                                 batch["source_points"], images.shape[-2:]) # [B, N], [B, N, 2]
+                    student_source_features = student_source_features[torch.arange(B)[:, None], idxs]
+                    points = rescale_points(points, (SH, SW), (TH, TW)) # [B, N, 2]
+                    idxs = points_to_idxs(points, (TH, TW)) # [B, N]
+                    teacher_source_features = teacher_source_features[torch.arange(B)[:, None], idxs]
+                    
                 # Calculate similarity
-                if sampling_method == 'full':
-                    student_similarity = student_source_features @ student_target_features.transpose(1, 2)
-                    teacher_similarity = teacher_source_features @ teacher_target_features.transpose(1, 2)
-                elif sampling_method == 'ground_truth':
-                    source_points = rescale_points(batch['source_points'], images.shape[-2:], (h, w)) # [B, N, 2]
-                    source_idxs = points_to_idxs(source_points, (h, w)) # [B, N]
-                    student_source_features = student_source_features[torch.arange(student_source_features.shape[0])[:, None], source_idxs] # [B, N, C]
-
-                    source_idxs = points_to_idxs(batch['source_points'], images.shape[-2:]) # [B, N]
-                    teacher_source_features = teacher_source_features[torch.arange(teacher_source_features.shape[0])[:, None], source_idxs] # [B, N, C]
-
-                    student_similarity = student_source_features @ student_target_features.transpose(1, 2) # [B, N, HxW]
-                    teacher_similarity = teacher_source_features @ teacher_target_features.transpose(1, 2) # [B, N, HxW]
-                elif sampling_method == 'foreground':
-                    # TODO: Use DINO features to seperate foreground and background
-                    raise NotImplementedError
-                elif sampling_method == 'random_foreground':
-                    raise NotImplementedError
+                student_similarity = student_source_features @ student_target_features.transpose(1, 2) # [B, N, HxW]
+                teacher_similarity = teacher_source_features @ teacher_target_features.transpose(1, 2) # [B, N, HxW]
 
                 # Calculate prediction and target
                 if similarity_method == 'softmax': # should be combined with cross-entropy
                     temperature = 0.04 # temperature for softmax
-                    kernel_size = 7 # kernel size for blurring target
                     prediction = softmax_with_temperature(student_similarity, temperature) # [B, N, HxW]
-                    prediction = prediction.reshape(*prediction.shape[:2], h, w) # [B, N, H, W]
+                    prediction = prediction.reshape(*prediction.shape[:2], SH, SW) # [B, N, H, W]
                     target = softmax_with_temperature(teacher_similarity, temperature) # [B, N, HxW]
-                    target = target.reshape(*target.shape[:2], h, w) # [B, N, H, W]
-                    target = torchvision.transforms.functional.gaussian_blur(target, kernel_size=kernel_size) # gaussian smooth target
+                    target = target.reshape(*target.shape[:2], TH, TW) # [B, N, H, W]
                 elif similarity_method == 'soft_argmax': # should be combined with MSE
                     epsilon = 1.0 # shift target points [epsilon, -epsilon] pixels
                     beta = 1000.0 # sharpness of angle of soft-argmax
-                    student_similarity = student_similarity.reshape(*student_similarity.shape[:2], h, w) # [B, N, H, W]
+                    student_similarity = student_similarity.reshape(*student_similarity.shape[:2], SH, SW) # [B, N, H, W]
                     prediction = softargmax2d(student_similarity, beta) # [B, N, 2]
                     target = torch.argmax(teacher_similarity, dim=-1).float() # [B, N]
-                    target = idxs_to_points(target, images.shape[-2:]) # [B, N, 2]
-                    target = rescale_points(target, images.shape[-2:], (h, w))
+                    target = idxs_to_points(target, (TH, TW)) # [B, N, 2]
+                    target = rescale_points(target, (TH, TW), (SH, SW))
                     target += torch.randn_like(target) * epsilon
                 elif similarity_method == 'raw':
-                    prediction = student_similarity
-                    target = teacher_similarity
-
-                # Plot images and points
-                """if accelerator.is_main_process:
-                    source_points = batch['source_points']
-                    target_points = batch['target_points']
-                    predicted_points = idxs_to_points(torch.argmax(teacher_similarity, dim=-1), images.shape[-2:]).detach()
-
-                    import matplotlib.pyplot as plt
-                    fig, ax = plt.subplots(3, source_points.shape[1], figsize=(20, 10))
-                    ax[0, 0].imshow(images[0].permute(1, 2, 0).detach().cpu())
-                    ax[0, 0].scatter(source_points[:, :, 1].cpu(), source_points[:, :, 0].cpu(), c='r')
-                    ax[0, 1].imshow(images[1].permute(1, 2, 0).detach().cpu())
-                    ax[0, 1].scatter(target_points[:, :, 1].cpu(), target_points[:, :, 0].cpu(), c='r')
-                    ax[0, 1].scatter(predicted_points[:, :, 1].cpu(), predicted_points[:, :, 0].cpu(), c='b')
-                    for i in range(0, source_points.shape[1]):
-                        ax[1, i].imshow(teacher_similarity[0, i].reshape(images.shape[-2:]).detach().cpu())
-                        ax[1, i].scatter(target_points[:, i, 1].cpu(), target_points[:, i, 0].cpu(), c='r')
-                        ax[2, i].imshow(student_similarity[0, i].reshape(h, w).detach().cpu())
-                    plt.show()
-                    plt.savefig('cache/points' + str(i) + '.png')"""
+                    prediction = student_similarity.reshape(*student_similarity.shape[:2], SH, SW)
+                    target = teacher_similarity.reshape(*teacher_similarity.shape[:2], TH, TW)
 
                 # Calculate loss
                 loss = criterion(prediction, target)
@@ -139,11 +122,12 @@ def distill(teacher, student, dataloader, criterion, optimizer, scheduler, num_e
                 pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
 
                 # Save model if loss is lowest
-                if i > 0 and i % 1000 == 0:
+                if i > 0 and i % int(len(dataloader) * 0.1) == 0: # every 10% of epoch
                     mean_loss = sum(epoch_loss) / len(epoch_loss)
                     if mean_loss < min_loss:
                         min_loss = mean_loss
                         accelerator.save_state('checkpoints/best_model', safe_serialization=False) # use model_name
+                        print(f"Saved model with loss {min_loss}")
         pbar.close()
     
     # Log end of training
@@ -229,11 +213,12 @@ def train(model, dataloader, criterion, optimizer, scheduler, num_epochs, accele
                 pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
 
                 # Save model if loss is lowest
-                if i > 0 and i % 1000 == 0:
+                if i > 0 and i % int(len(dataloader) * 0.1) == 0: # every 10% of epoch
                     mean_loss = sum(epoch_loss) / len(epoch_loss)
                     if mean_loss < min_loss:
                         min_loss = mean_loss
                         accelerator.save_state('checkpoints/best_model', safe_serialization=False) # use model_name
+                        print(f"Saved model with loss {min_loss}")
         pbar.close()
     
     # Log end of training
@@ -310,18 +295,30 @@ if __name__ == '__main__':
     random_sampling = config.get('random_sampling', False)
     normalize_image = config.get('normalize_image', False)
 
-    preprocess = Preprocessor(image_size, rescale_data=True, normalize_image=normalize_image)
+    preprocess = Preprocessor(image_size, rescale_data=True, image_range=[0, 1], normalize_image=normalize_image)
     dataset = load_dataset(dataset_name, config, preprocess)
     dataset.image_pair = True
 
+    # Initialize accelerator
+    full_fine_tune = model_config.get('linear_head', False) is False and model_config.get('rank', None) is None
+    accelerator = Accelerator(log_with="tensorboard", project_config=ProjectConfiguration(
+            project_dir=".",
+            logging_dir="logs"
+        ),
+        mixed_precision="bf16" if half_precision else "no",
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=full_fine_tune)] # True for full fine-tune
+    )
+
     # Cache dataset
-    if use_cache:
-        if not os.path.exists(cache_dir):
-            os.mkdir(cache_dir)
-        cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}_train.h5")
-        dataset = cache_dataset(teacher, dataset, cache_path, reset_cache, batch_size, num_workers, torch.device('cuda:0'), half_precision)
-        dataset.load_images = True
-        teacher.cpu() # unload teacher from GPU
+    with accelerator.main_process_first():
+        if use_cache:
+            if not os.path.exists(cache_dir):
+                os.mkdir(cache_dir)
+            cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
+            dataset = cache_dataset(teacher, dataset, cache_path, reset_cache, batch_size, num_workers, torch.device('cuda:0'), half_precision)
+            dataset.load_images = True
+            teacher.cpu() # unload teacher from GPU
     
     # Create dataloader
     def collate_fn(batch):
@@ -331,6 +328,10 @@ if __name__ == '__main__':
             if key in ['source_image', 'target_image', 'source_features', 'target_features', 'source_points', 'target_points']:
                 output[key] = torch.stack(output[key])
         return output
+
+    ###### Filter for tv-monitor ########
+    dataset.data = [sample for sample in dataset.data if sample['source_category'] == 'tvmonitor' and sample['target_category'] == 'tvmonitor']
+    #####################################
 
     # Create dataloader
     dataloader = data.DataLoader(dataset,
@@ -355,15 +356,6 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"Scheduler type {scheduler_type} not supported")
 
-    # Initialize accelerator
-    accelerator = Accelerator(log_with="tensorboard", project_config=ProjectConfiguration(
-            project_dir=".",
-            logging_dir="logs"
-        ),
-        mixed_precision="bf16" if half_precision else "no",
-        gradient_accumulation_steps=gradient_accumulation_steps,
-        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=False)] # True for full fine-tune
-    )
     tracker_config = {
         "dataset_name": dataset_name,
         "learning_rate": learning_rate,
@@ -384,12 +376,11 @@ if __name__ == '__main__':
             student, optimizer, scheduler, dataloader = accelerator.prepare(student, optimizer, scheduler, dataloader) # no need for teacher
         else:
             teacher, student, optimizer, scheduler, dataloader = accelerator.prepare(teacher, student, optimizer, scheduler, dataloader)
-        accelerator.register_for_checkpointing(student) #, optimizer, scheduler)
     elif mode == 'train':
         tracker_config["model_name"] = model_name
         student, optimizer, scheduler, dataloader = accelerator.prepare(student, optimizer, scheduler, dataloader)
-        accelerator.register_for_checkpointing(student) #, optimizer, scheduler)
-
+    
+    accelerator.register_for_checkpointing(student) #, optimizer, scheduler)
     accelerator.init_trackers(model_name, config=tracker_config)
     if checkpoint is not None:
         accelerator.load_state(checkpoint)

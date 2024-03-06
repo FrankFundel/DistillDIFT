@@ -10,8 +10,10 @@ _To be continued..._
 ## ⏳ ToDo
 
 ### Training
-- Implement strategies: Foreground and Random Point Sampling
-- Distill supervised on SPair-71k train split
+- Pre-sample points and cache them
+- Sample points where predictions are most different between dino and dinodiff or pre-sample where where features are most different
+- Train autoencoder on dino-diff, train linear head on dino to predict same as autoencoder
+
 - Cache features on multiple GPUs into multiple files
 - Distill unsupervised on ImageNet
 - Implement sharded dataset
@@ -57,7 +59,7 @@ _To be continued..._
 ## 🔬 Training
 
 - Supervised Training: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_s --dataset_name SPair-71k`
-- Weakly-Supervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k`
+- Unsupervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k`
 
 ## ⚗️ Distilled models
 

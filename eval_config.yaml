@@ -243,7 +243,7 @@ distilled_model:
   image_size: [336, 336]
   batch_size: 64
   image_range: [0, 1]
-  weights: "/export/home/ra63des/DistillDIFT/checkpoints/best_model/pytorch_model_1.bin" # _1.bin for distillation
+  weights: "/export/home/ra63des/DistillDIFT/checkpoints/best_model/pytorch_model.bin" # _1.bin for uncached distillation
   rank: 8
   lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
   linear_head: false
