@@ -51,14 +51,5 @@ class CacheModel(BaseModel):
                                                     batch['target_size'])
         return predicted_points
 
-    def forward(self, batch):
-        images = torch.cat([batch['source_image'], batch['target_image']])
-        categories = batch['source_category'] + batch['target_category']
-
-        features = self.get_features(images, categories)
-        if self.layers is not None:
-            features = features[0] # only one layer
-        batch['source_features'] = features[:len(batch['source_image'])]
-        batch['target_features'] = features[len(batch['target_image']):]
-        
-        return self.compute_correspondence(batch)
+    def forward(self, image, category=None):
+        return self.get_features(image, category)

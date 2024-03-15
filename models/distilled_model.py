@@ -22,6 +22,7 @@ class LoRALayer(nn.Module):
         linear_b_q: nn.Module,
         linear_a_v: nn.Module,
         linear_b_v: nn.Module,
+        dropout
     ):
         super().__init__()
         self.qkv = qkv
@@ -31,9 +32,14 @@ class LoRALayer(nn.Module):
         self.linear_b_v = linear_b_v
         self.dim = qkv.in_features
         self.w_identity = torch.eye(qkv.in_features)
+        if dropout > 0:
+            self.dropout = nn.Dropout(dropout)
+        else:
+            self.dropout = lambda x: x
 
     def forward(self, x):
         qkv = self.qkv(x)  # B,N,3*org_C
+        qkv = self.dropout(qkv)
         new_q = self.linear_b_q(self.linear_a_q(x))
         new_v = self.linear_b_v(self.linear_a_v(x))
         qkv[:, :, : self.dim] += new_q
@@ -54,6 +60,7 @@ class DistilledModel(CacheModel):
         self.rank = config["rank"]
         self.linear_head = config["linear_head"]
         self.lora_layers = config["lora_layers"]
+        self.lora_dropout = config["lora_dropout"]
 
         self.patch_size = 14
         self.model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14_reg', pretrained=True)
@@ -112,6 +119,7 @@ class DistilledModel(CacheModel):
                 w_b_linear_q,
                 w_a_linear_v,
                 w_b_linear_v,
+                self.lora_dropout
             )
 
             for p in blk.attn.qkv.parameters():
@@ -125,9 +133,6 @@ class DistilledModel(CacheModel):
             nn.init.kaiming_uniform_(w_A.weight, a=math.sqrt(5))
         for w_B in self.w_Bs:
             nn.init.zeros_(w_B.weight)
-
-    def forward(self, image, category=None):
-        return self.get_features(image, category)
 
     def get_features(self, image, category=None):
         b = image.shape[0]

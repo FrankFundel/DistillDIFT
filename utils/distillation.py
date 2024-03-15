@@ -73,12 +73,42 @@ def separate_foreground(features):
     
     for b in range(B):
         flattened_features = features[b].view(-1, C)  # Shape: [HW, C]
+        flattened_features = flattened_features - flattened_features.mean(dim=0, keepdim=True) # Center the data
         U, S, V = torch.pca_lowrank(flattened_features, q=1)
         scores = U[:, 0]  # First principal component scores for batch b
         threshold = scores.mean().item()  # Calculate mean for current batch's scores
         foreground_masks[b] = scores > threshold  # Update mask for batch b
     
-    return foreground_masks
+    return ~foreground_masks
+
+def separate_foreground_copca(source_features, target_features):
+    """
+    Separate the foreground from the background in the input features using Co-PCA.
+
+    Parameters:
+        source_features (torch.Tensor): The source features to be separated. [B, HW, C]
+        target_features (torch.Tensor): The target features to be separated. [B, HW, C]
+
+    Returns:
+        torch.Tensor: The foreground masks for the source features.
+        torch.Tensor: The foreground masks for the target features.
+    """
+    B, HW, C = source_features.shape
+    source_masks = torch.zeros_like(source_features[:, :, 0], dtype=torch.bool, device=source_features.device)
+    target_masks = torch.zeros_like(target_features[:, :, 0], dtype=torch.bool, device=target_features.device)
+
+    for b in range(B):
+        flattened_source_features = source_features[b].view(-1, C)  # Shape: [B*HW, C]
+        flattened_target_features = target_features[b].view(-1, C)  # Shape: [B*HW, C]
+        concatenated_features = torch.cat((flattened_source_features, flattened_target_features), dim=0)  # Shape: [2*HW, C]
+        concatenated_features = concatenated_features - concatenated_features.mean(dim=0, keepdim=True) # Center the data
+        U, S, V = torch.pca_lowrank(concatenated_features, q=1)
+        scores = U[:, 0]  # First principal component scores for batch b
+        threshold = scores.mean().item()  # Calculate mean for current batch's scores
+        source_masks[b] = scores[:HW] > threshold  # Update mask for batch b
+        target_masks[b] = scores[HW:] > threshold  # Update mask for batch b
+
+    return ~source_masks, ~target_masks
 
 def sample_points(features, feature_size, sampling_method=None, ground_truth_points=None, image_size=None, N=10):
     """
@@ -117,5 +147,15 @@ def sample_points(features, feature_size, sampling_method=None, ground_truth_poi
                     points[b, points, 1] = x
                     points += 1
         idxs = points_to_idxs(points, (H, W)) # [B, N]
+    elif sampling_method == 'grid':
+        # Select N points on a regular grid
+        y = torch.linspace(0, H - 1, N, dtype=torch.long)
+        x = torch.linspace(0, W - 1, N, dtype=torch.long)
+        points = torch.stack(torch.meshgrid(y, x), dim=-1)
+        idxs = points_to_idxs(points, (H, W))
+    elif sampling_method == 'random':
+        # Select N random indices
+        idxs = torch.randint(0, H * W, (B, N), dtype=torch.long)
+        points = idxs_to_points(idxs, (H, W))
 
     return idxs, points

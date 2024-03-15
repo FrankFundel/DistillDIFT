@@ -8,15 +8,13 @@ We provide a well-written and documented code base for semantic correspondence, 
 _To be continued..._
 
 ## ⏳ ToDo
+- Split loss function and Multiple teachers
+- Ensemble diff
 
-### Training
-- Pre-sample points and cache them
-- Sample points where predictions are most different between dino and dinodiff or pre-sample where where features are most different
-- Train autoencoder on dino-diff, train linear head on dino to predict same as autoencoder
+- (Train autoencoder on dino-diff, train linear head on dino to predict same as autoencoder)
 
-- Cache features on multiple GPUs into multiple files
-- Distill unsupervised on ImageNet
 - Implement sharded dataset
+- Distill unsupervised on ImageNet
 
 ## 💼 Related Work
 
@@ -45,7 +43,7 @@ _To be continued..._
     - `layers`: list of layers to evaluate, only possible together with `--use_cache`
     - Additional options are passed to the model
 
-4. Run the evaluation script: `python eval.py [options]`
+4. Run the evaluation script: `accelerate launch --multi_gpu --num_processes [n] python eval.py [options]`
     - Make sure to set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`
     - Some models need a different diffusers version:
         - hedlin: `diffusers==0.8.0`
@@ -56,10 +54,12 @@ _To be continued..._
     - Use `--plot` to plot the results of layerwise evaluation
     - When using cache, remember to use `--reset_cache` if you made changes on the model, else the features will stay the same
 
+    Example: `accelerate launch --multi_gpu --num_processes 4 python eval.py --use_cache --reset_cache`
+
 ## 🔬 Training
 
 - Supervised Training: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_s --dataset_name SPair-71k`
-- Unsupervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k`
+- Weakly Supervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k`
 
 ## ⚗️ Distilled models
 

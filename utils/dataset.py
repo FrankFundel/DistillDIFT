@@ -55,7 +55,7 @@ def load_dataset(dataset_name, config, preprocess=None):
     
     raise ValueError('Dataset not recognized.')
 
-def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device, half_precision, point_sampling_method=None):
+def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device, half_precision):
     """
     Cache features from dataset.
 
@@ -68,7 +68,6 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
         num_workers (int): Number of workers for dataloader
         device (torch.device): Device
         half_precision (bool): Whether to use half precision
-        point_sampling_method (str): Point sampling method (None, 'random_foreground', 'distinct')
     """
 
     if os.path.exists(cache_path) and not reset_cache:
@@ -103,7 +102,7 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
             layers = [f.create_group(str(l)) if str(l) not in f else f[str(l)] for l in model.layers]
 
         # Move model to device
-        model.to(device, dtype=torch.bfloat16 if half_precision else torch.float32)
+        model.to(device)
 
         # Get features and save to cache file
         with torch.no_grad():
@@ -116,19 +115,12 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
                     category = list(category) + [category[-1]] * (batch_size-len(key))
                 
                 # Get features
-                features = model.get_features(image, category)
+                features = model(image, category)
 
-                # Sample and save points (must be usable for B>1)
-                if point_sampling_method is not None and point_sampling_method in ['random_foreground']:
-                    feature_size = features.shape
-                    _, points = sample_points(normalize_features(flatten_features(features)), feature_size, point_sampling_method)
-                    for i, k in enumerate(key):
-                        f.create_dataset(k + '_points', data=points[i])
-                
                 # Save features
                 def save_features(g, features):
                     for i, k in enumerate(key): # for each image and key in the batch
-                        g.create_dataset(k, data=features[i].type(torch.float16 if half_precision else torch.float32)) # bfloat26 not supported
+                        g.create_dataset(k, data=features[i].type(torch.float16 if half_precision else torch.float32)) # bfloat16 not supported
 
                 if type(features) is list: # (l, b, c, h, w)
                     for l, layer in enumerate(layers):

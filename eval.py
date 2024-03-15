@@ -1,23 +1,24 @@
 import os
 import torch
-import tqdm
 import argparse
+from tqdm import tqdm
 
 import torch.utils.data as data
+from accelerate import Accelerator
 
-from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Preprocessor
+from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Preprocessor, CacheDataset
 from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 from utils.visualization import plot_results
 
-def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=False, save_predictions=False):
+def eval(model, dataloader, accelerator, pck_threshold, use_cache=False, save_histograms=False, save_predictions=False):
     model.eval()
 
-    pbar = tqdm.tqdm(total=len(dataloader))
+    pbar = tqdm(total=len(dataloader), disable=(not accelerator.is_main_process))
 
-    pck_img = 0
-    pck_bbox = 0
-    keypoints = 0
+    pck_img = torch.tensor(0, device=accelerator.device)
+    pck_bbox = torch.tensor(0, device=accelerator.device)
+    keypoints = torch.tensor(0, device=accelerator.device)
 
     histograms = []
     predictions = []
@@ -26,22 +27,12 @@ def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=Fals
     
     for batch in dataloader:
         if use_cache:
-            # Load features on device
-            batch['source_features'] = batch['source_features'].to(device)
-            batch['target_features'] = batch['target_features'].to(device)
-
-            output = model.compute_correspondence(batch, return_histograms=save_histograms)
+            output = model.module.compute_correspondence(batch, return_histograms=save_histograms)
             if save_histograms:
                 predicted_points, hists = output
-                hists = [h.cpu() for h in hists]
             else:
                 predicted_points = output
-            predicted_points = [p.cpu() for p in predicted_points]
         else:
-            # Load features on device
-            batch['source_image'] = batch['source_image'].to(device)
-            batch['target_image'] = batch['target_image'].to(device)
-
             # Run through model
             predicted_points = model(batch)
 
@@ -65,32 +56,43 @@ def eval(model, dataloader, pck_threshold, use_cache=False, save_histograms=Fals
 
         # Update progress bar
         pbar.update(1)
-        pbar.set_postfix({'PCK_img': (pck_img / keypoints) * 100, 'PCK_bbox': (pck_bbox / keypoints) * 100})
+        pbar.set_postfix({'PCK_img': (accelerator.gather_for_metrics(pck_img).sum() / accelerator.gather_for_metrics(keypoints).sum()).item() * 100,
+                          'PCK_bbox': (accelerator.gather_for_metrics(pck_bbox).sum() / accelerator.gather_for_metrics(keypoints).sum()).item() * 100})
 
     pbar.close()
     
     if save_histograms:
         # save histograms for later analysis
-        histograms = torch.stack(histograms, dim=0).mean(0)
-        torch.save(histograms, f"histograms.pt")
+        histograms = torch.stack(histograms, dim=0)
+        histograms = accelerator.gather_for_metrics(histograms).mean(0)
+        if accelerator.is_main_process:
+            torch.save(histograms, f"histograms.pt")
 
     if save_predictions:
         # save predictions for later analysis
-        torch.save([predictions, corrects, distances], f"predictions.pt")
+        predictions = accelerator.gather_for_metrics(predictions)
+        corrects = accelerator.gather_for_metrics(corrects)
+        distances = accelerator.gather_for_metrics(distances)
+        if accelerator.is_main_process:
+            torch.save([predictions, corrects, distances], f"predictions.pt")
 
-    print(f"PCK_img: {(pck_img / keypoints) * 100:.2f}, PCK_bbox: {(pck_bbox / keypoints) * 100:.2f}")
+    pck_img = accelerator.gather_for_metrics(pck_img).sum()
+    pck_bbox = accelerator.gather_for_metrics(pck_bbox).sum()
+    keypoints = accelerator.gather_for_metrics(keypoints).sum()
+    if accelerator.is_main_process:
+        print(f"PCK_img: {(pck_img / keypoints) * 100:.2f}, PCK_bbox: {(pck_bbox / keypoints) * 100:.2f}")
     return pck_img / keypoints, pck_bbox / keypoints
 
-def evaluate(model, dataloader, pck_threshold, layers=None, use_cache=False, save_histograms=False, save_predictions=False):
+def evaluate(model, dataloader, accelerator, pck_threshold, layers=None, use_cache=False, save_histograms=False, save_predictions=False):
     if layers is None:
-        return eval(model, dataloader, pck_threshold, use_cache, save_histograms, save_predictions)
+        return eval(model, dataloader, accelerator, pck_threshold, use_cache, save_histograms, save_predictions)
 
     pck_img = []
     pck_bbox = []
     for l in layers:
         print(f"Layer {l}:")
         dataloader.dataset.set_layer(l)
-        pck_img_l, pck_bbox_l = eval(model, dataloader, pck_threshold, use_cache, save_histograms, save_predictions)
+        pck_img_l, pck_bbox_l = eval(model, dataloader, accelerator, pck_threshold, use_cache, save_histograms, save_predictions)
         pck_img.append(pck_img_l)
         pck_bbox.append(pck_bbox_l)
     return pck_img, pck_bbox
@@ -101,7 +103,6 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_names', type=str, nargs='+', default=['SPair-71k', 'PF-WILLOW', 'CUB-200-2011'], help='Names of the datasets to evaluate on')
     parser.add_argument('--model_config', type=str, default='eval_config.yaml', help='Path to model config file')
     parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
-    parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'], help='Device to run on')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
     parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False, help='Precalculate features and use them for faster evaluation')
@@ -118,7 +119,6 @@ if __name__ == '__main__':
     dataset_names = args.dataset_names
     dataset_config = args.dataset_config
     model_config = args.model_config
-    device_type = args.device
     num_workers = args.num_workers
     pck_threshold = args.pck_threshold
     use_cache = args.use_cache
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     # Load model config
     model_config = read_model_config(model_config)[model_name]
-    model_config['device'] = device_type # some models need to know the device (hedlin, luo, tang)
+    model_config['device'] = "cuda" # some models need to know the device (hedlin, luo, tang)
 
     # Get model parameters
     image_size = model_config.get('image_size', (512, 512))
@@ -143,22 +143,26 @@ if __name__ == '__main__':
     layers = model_config.get('layers', None)
     half_precision = model_config.get('half_precision', False)
 
+    # Initialize accelerator
+    accelerator = Accelerator(
+        mixed_precision="fp16" if half_precision else "no", # bf16 for A100
+    )
+
     # Load model
     model = load_model(model_name, model_config)
-
-    # Move model to device
-    device = torch.device(device_type)
-    model.to(device, dtype=torch.bfloat16 if half_precision else torch.float32)
+    model = accelerator.prepare(model)
 
     # Load dataset config
     dataset_config = read_dataset_config(dataset_config)
     
     # Print seperator
-    print(f"\n{'='*30} Evaluate {model_name} {'='*30}\n")
+    if accelerator.is_main_process:
+        print(f"\n{'='*30} Evaluate {model_name} {'='*30}\n")
 
     # Evaluate
     for dataset_name in dataset_names:
-        print(f"Dataset: {dataset_name}")
+        if accelerator.is_main_process:
+            print(f"Dataset: {dataset_name}")
 
         # Load dataset parameters
         config = dataset_config[dataset_name]
@@ -176,11 +180,15 @@ if __name__ == '__main__':
         dataset.data = dataset.data[:min_num_samples]
 
         # Cache dataset
-        if use_cache:
-            if not os.path.exists(cache_dir):
-                os.mkdir(cache_dir)
-            cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
-            dataset = cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_workers, device, half_precision)
+        with accelerator.main_process_first():
+            if use_cache:
+                if not os.path.exists(cache_dir):
+                    os.mkdir(cache_dir)
+                cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
+                if accelerator.is_main_process:
+                    dataset = cache_dataset(model.module, dataset, cache_path, reset_cache, batch_size, num_workers, accelerator.device, half_precision)
+                else:
+                    dataset = CacheDataset(dataset, cache_path)
 
         # Create dataloader
         def collate_fn(batch):
@@ -194,17 +202,21 @@ if __name__ == '__main__':
         dataloader = data.DataLoader(dataset,
                                      batch_size=batch_size,
                                      shuffle=False,
+                                     pin_memory=True,
                                      num_workers=num_workers,
                                      drop_last=drop_last_batch,
                                      collate_fn=collate_fn)
+        
+        dataloader = accelerator.prepare(dataloader)
 
         with torch.set_grad_enabled(grad_enabled):
-            pck_img, pck_bbox = evaluate(model, dataloader, pck_threshold, layers, use_cache, save_histograms, save_predictions)
+            pck_img, pck_bbox = evaluate(model, dataloader, accelerator, pck_threshold, layers, use_cache, save_histograms, save_predictions)
 
-        if plot and layers is not None:
-            if not os.path.exists('plots'):
-                os.mkdir('plots')
-            plot_results(pck_img, pck_bbox, layers, f"plots/{model_name}_{dataset_name}.png")
-        break
+        if accelerator.is_main_process:
+            if plot and layers is not None:
+                if not os.path.exists('plots'):
+                    os.mkdir('plots')
+                plot_results(pck_img, pck_bbox, layers, f"plots/{model_name}_{dataset_name}.png")
 
-    print(f"\n{'='*30} Finished {'='*30}\n")
+    if accelerator.is_main_process:
+        print(f"\n{'='*30} Finished {'='*30}\n")
