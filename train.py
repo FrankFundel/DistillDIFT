@@ -1,4 +1,5 @@
 import os
+import copy
 import torch
 import signal
 import argparse
@@ -12,35 +13,18 @@ import torch.nn.functional as F
 from torch.nn.functional import interpolate, one_hot
 import torchvision
 
-from utils.dataset import read_dataset_config, load_dataset, cache_dataset, Preprocessor
+from utils.dataset import read_dataset_config, load_dataset, cache_dataset, pairs_to_single, combine_caches, Preprocessor, CacheDataset
 from utils.model import read_model_config, load_model
-from utils.correspondence import points_to_idxs, idxs_to_points, flatten_features, normalize_features, rescale_points, compute_pck_img, compute_pck_bbox
-from utils.distillation import softmax_with_temperature, softargmax2d, sample_points, separate_foreground_copca
+from utils.correspondence import points_to_idxs, idxs_to_points, flatten_features, normalize_features, rescale_points
+from utils.distillation import should_save, softmax_with_temperature, softargmax2d, sample_points, separate_foreground_copca, SCELoss
 
 torch.backends.cuda.matmul.allow_tf32 = True
 from accelerate import DistributedDataParallelKwargs
 
-class SCELoss(torch.nn.Module):
-    def __init__(self, alpha, beta):
-        super(SCELoss, self).__init__()
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.alpha = alpha
-        self.beta = beta
-        self.cross_entropy = torch.nn.CrossEntropyLoss()
 
-    def forward(self, pred, target):
-        # Source Image -> Target Image
-        ce = self.cross_entropy(pred, target) # dim 0
-
-        # Target Image -> Source Image
-        rce = (-1*torch.sum(pred * torch.log(target), dim=1)) # dim 1
-
-        # Loss
-        loss = self.alpha * ce + self.beta * rce.mean()
-        return loss
-    
-def distill_epoch(teacher, student, dataloader, criterion, optimizer, scheduler, epoch, accelerator, use_cache, sampling_method, softmax_temperature=0.01, softargmax_beta=1000.0, model_name='best_model'):
-    teacher.eval()
+def distill_epoch(teachers, student, dataloader, criterion, optimizer, scheduler, epoch, accelerator, use_cache, sampling_method, softmax_temperature=0.01, softargmax_beta=1000.0, model_name='best_model', checkpoint_percent=1.0):
+    for t in teachers:
+        t.eval()
     student.train()
 
     epoch_loss = []
@@ -51,12 +35,16 @@ def distill_epoch(teacher, student, dataloader, criterion, optimizer, scheduler,
         categories = batch['source_category'] + batch['target_category']
 
         if use_cache:
-            # Load features from cache
+            # Load teacher features from cache
             teacher_features = torch.cat([batch['source_features'], batch['target_features']])
         else:
-            # Run through model
+            # Run through teacher models
+            teacher_features = []
             with torch.no_grad():
-                teacher_features = teacher(images, categories)
+                for t in teachers:
+                    teacher_features.append(t(interpolate(images, t.config['image_size']), categories)[0]) # only use first layer
+            teacher_features = torch.cat(teacher_features, dim=1) # [B, C, H, W]
+
         student_features = student(images, categories)
 
         # Interpolate teacher features for higher point density
@@ -134,14 +122,14 @@ def distill_epoch(teacher, student, dataloader, criterion, optimizer, scheduler,
         pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
 
         # Save model if loss is lowest
-        if i > 0 and i % int(len(dataloader) * 0.1) == 0:
+        if should_save(epoch, i, len(dataloader), checkpoint_percent):
             mean_loss = sum(epoch_loss) / len(epoch_loss)
             accelerator.save_state(f'checkpoints/{model_name}_{epoch}_{i}', safe_serialization=False) # use model_name
             print(f"Saved model with loss {mean_loss}")
 
     pbar.close()
 
-def train_epoch(model, dataloader, criterion, optimizer, scheduler, epoch, accelerator, similarity_method, softmax_temperature=0.01, softargmax_beta=1000.0, model_name='best_model'):
+def train_epoch(model, dataloader, criterion, optimizer, scheduler, epoch, accelerator, similarity_method, softmax_temperature=0.01, softargmax_beta=1000.0, model_name='best_model', checkpoint_percent=1.0):
     model.train()
 
     epoch_loss = []
@@ -211,7 +199,7 @@ def train_epoch(model, dataloader, criterion, optimizer, scheduler, epoch, accel
         pbar.set_postfix({'Loss': sum(epoch_loss) / len(epoch_loss)})
 
         # Save model if loss is lowest
-        if i > 0 and i % int(len(dataloader) * 0.5) == 0: # every 50% of epoch
+        if should_save(epoch, i, len(dataloader), checkpoint_percent):
             mean_loss = sum(epoch_loss) / len(epoch_loss)
             accelerator.save_state(f'checkpoints/{model_name}_{epoch}_{i}', safe_serialization=False) # use model_name
             print(f"Saved model with loss {mean_loss}")
@@ -235,7 +223,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--checkpoint', type=str, default=None, help='Path to checkpoint to resume training')
-    parser.add_argument('--cache_dir', type=str, default='cache', help='Path to cache directory')
+    parser.add_argument('--cache_dir', type=str, default='/export/scratch/ra63des/cache', help='Path to cache directory')
     parser.add_argument('--use_cache', action='store_true', help='Use cache')
     parser.add_argument('--reset_cache', action='store_true', help='Reset cache')
     parser.add_argument('--only_tvmonitor', action='store_true', help='Only use tvmonitor category')
@@ -271,20 +259,23 @@ if __name__ == '__main__':
     softmax_temperature = model_config.get('softmax_temperature', 0.01)
     softargmax_beta = model_config.get('softargmax_beta', 1000.0)
     step_percent = model_config.get('step_percent', 0.5)
+    checkpoint_percent = model_config.get('checkpoint_percent', 1.0)
 
     # Load model(s)
     if mode == 'distill':
-        teacher = load_model(model_config['teacher_name'], model_config['teacher_config'])
+        teachers = []
+        for key in model_config.keys():
+            if 'teacher' in key:
+                teachers.append(load_model(model_config[key]['model'], model_config[key]['model_config']))
         student = load_model(model_config['student_name'], model_config['student_config'])
     elif mode == 'train':
         student = load_model(model_name, model_config)
 
     # Set parameters of teacher to not require gradients
     if mode == 'distill':
-        for param in teacher.model1.extractor.parameters():
-            param.requires_grad = False
-        for param in teacher.model2.extractor.parameters():
-            param.requires_grad = False
+        for teacher in teachers:
+            for param in teacher.extractor.parameters():
+                param.requires_grad = False
 
     # Load dataset config
     dataset_config = read_dataset_config(dataset_config)
@@ -292,12 +283,31 @@ if __name__ == '__main__':
     # Load dataset parameters
     config = dataset_config[dataset_name]
     config['split'] = 'train'
+    num_samples = config.get('num_samples', None)
     random_sampling = config.get('random_sampling', False)
     normalize_image = config.get('normalize_image', False)
 
-    preprocess = Preprocessor(image_size, rescale_data=True, image_range=[0, 1], normalize_image=normalize_image)
+    preprocess = Preprocessor(image_size,
+                              rescale_data=(sampling_method == "ground_truth"),
+                              flip_data=(sampling_method == "ground_truth"),
+                              image_range=[0, 1],
+                              normalize_image=normalize_image)
     dataset = load_dataset(dataset_name, config, preprocess)
     dataset.image_pair = True
+    if random_sampling:
+        torch.manual_seed(42)
+        dataset.data = [dataset.data[i] for i in torch.randperm(len(dataset))]
+    if num_samples is not None:
+        dataset.data = dataset.data[:num_samples]
+    if hasattr(dataset, 'create_category_to_id'):
+        dataset.create_category_to_id()
+    
+    ##### Pairs to single ######
+    # if dataset is pairs and image_sampling is not ground_truth, convert to single
+    #unique_data, category_to_id = pairs_to_single(dataset.data)
+    #dataset.data = unique_data
+    #dataset.category_to_id = category_to_id
+    ######################
 
     # Initialize accelerator
     student_config = model_config if mode == 'train' else model_config['student_config']
@@ -310,15 +320,39 @@ if __name__ == '__main__':
         kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=full_fine_tune)] # True for full fine-tune
     )
 
-    # Cache dataset
-    with accelerator.main_process_first():
-        if use_cache:
-            if not os.path.exists(cache_dir):
-                os.mkdir(cache_dir)
-            cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}.h5")
-            dataset = cache_dataset(teacher, dataset, cache_path, reset_cache, batch_size, num_workers, accelerator.device, half_precision)
-            dataset.load_images = True
-            teacher.to("cpu") # unload teacher from GPU
+    # Cache dataset for each teacher and join caches
+    #with accelerator.main_process_first():
+    if use_cache:
+        if not os.path.exists(cache_dir):
+            os.mkdir(cache_dir)
+        cache_paths = [os.path.join(cache_dir, f"{model_name}_{dataset_name}_teacher{t+1}.h5") for t in range(len(teachers))]
+        if False:
+            temp_data = copy.deepcopy(dataset.data)
+            for t, teacher in enumerate(teachers):
+                device_id = torch.cuda.current_device()
+                cache_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}_teacher{t+1}_device{device_id}.h5")
+                dataset.preprocess.image_size = teacher.config['image_size']
+                dataset.preprocess.image_range = teacher.config['image_range']
+                dataset.data = temp_data[device_id::accelerator.state.num_processes]
+                cache_dataset(teacher, dataset, cache_path, reset_cache, teacher.config['batch_size'], num_workers, accelerator.device, half_precision)
+                #cache_paths.append(cache_path)
+                teacher.to("cpu") # unload teacher from GPU
+
+            dataset.data = temp_data # reset data
+
+            accelerator.wait_for_everyone()
+            if accelerator.is_main_process:
+                for t in range(len(teachers)):
+                    combined_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}_teacher{t+1}.h5")
+                    teacher_paths = [os.path.join(cache_dir, f"{model_name}_{dataset_name}_teacher{t+1}_device{i}.h5") for i in range(accelerator.state.num_processes)]
+                    combine_caches(teacher_paths, combined_path)
+            accelerator.wait_for_everyone()
+
+        dataset = CacheDataset(dataset, cache_paths)
+        dataset.load_images = True # load images for student
+        dataset.preprocess.image_size = image_size # student image size
+        dataset.preprocess.image_range = [0, 1] # student image range
+        dataset.set_layer([t.layers[0] for t in teachers]) # TODO: handle differently
 
     # Filter for tv-monitor
     if only_tvmonitor:
@@ -379,16 +413,16 @@ if __name__ == '__main__':
         "scheduler_type": scheduler_type,
     }
     if mode == 'distill':
-        tracker_config["teacher_name"] = model_config['teacher_name']
+        tracker_config["teacher_name"] = "_".join([model_config[key]['model'] for key in model_config.keys() if 'teacher' in key])
         tracker_config["student_name"] = model_config['student_name']
     elif mode == 'train':
         tracker_config["model_name"] = model_name
 
-    if use_cache or mode == 'train':
-        student, optimizer, scheduler, dataloader = accelerator.prepare(student, optimizer, scheduler, dataloader)
-    else:
-        teacher, student, optimizer, scheduler, dataloader = accelerator.prepare(teacher, student, optimizer, scheduler, dataloader)
+    if not use_cache and not mode == 'train':
+        teachers = accelerator.prepare(*teachers)
     
+    student, optimizer, scheduler, dataloader = accelerator.prepare(student, optimizer, scheduler, dataloader)
+
     accelerator.register_for_checkpointing(student)
     accelerator.init_trackers(model_name, config=tracker_config)
     if checkpoint is not None:
@@ -406,9 +440,9 @@ if __name__ == '__main__':
             print(f"Epoch {epoch+1}/{num_epochs}")
         
         if mode == 'distill':
-            distill_epoch(teacher, student, dataloader, criterion, optimizer, scheduler, epoch, accelerator, use_cache, sampling_method, softmax_temperature, softargmax_beta, model_name)
+            distill_epoch(teachers, student, dataloader, criterion, optimizer, scheduler, epoch, accelerator, use_cache, sampling_method, softmax_temperature, softargmax_beta, model_name, checkpoint_percent)
         elif mode == 'train':
-            train_epoch(student, dataloader, criterion, optimizer, scheduler, epoch, accelerator, similarity_method, softmax_temperature, softargmax_beta, model_name)
+            train_epoch(student, dataloader, criterion, optimizer, scheduler, epoch, accelerator, similarity_method, softmax_temperature, softargmax_beta, model_name, checkpoint_percent)
 
     # Log end of training
     accelerator.end_training()

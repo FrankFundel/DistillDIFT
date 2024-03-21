@@ -27,5 +27,10 @@ ImageNet:
   random_sampling: true
   normalize_image: true
 
+COCO:
+  path: "/export/group/datasets/coco"
+  random_sampling: true
+  num_samples: 12000
+
 PASCALPart:
   path: "/export/group/datasets/PASCAL-Part"

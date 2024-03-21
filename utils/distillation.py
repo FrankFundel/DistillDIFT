@@ -3,6 +3,13 @@ import torch.nn.functional as F
 
 from utils.correspondence import points_to_idxs, idxs_to_points, rescale_points
 
+def should_save(epoch, i, dataloader_length, checkpoint_percent):
+    if checkpoint_percent < 1:  # Save at a fraction of an epoch
+        steps_per_checkpoint = dataloader_length * checkpoint_percent
+        return (i + 1) % int(steps_per_checkpoint) == 0
+    else:  # Save every `checkpoint_percent` epochs
+        return ((epoch + 1) % int(checkpoint_percent) == 0) and (i + 1 == dataloader_length)
+
 def softmax_with_temperature(input, temperature=1.0):
     """
     Apply the softmax function with temperature on the input tensor.
@@ -159,3 +166,23 @@ def sample_points(features, feature_size, sampling_method=None, ground_truth_poi
         points = idxs_to_points(idxs, (H, W))
 
     return idxs, points
+
+class SCELoss(torch.nn.Module):
+    def __init__(self, alpha, beta):
+        super(SCELoss, self).__init__()
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.alpha = alpha
+        self.beta = beta
+        self.cross_entropy = torch.nn.CrossEntropyLoss(reduction='mean')
+
+    def forward(self, logits, targets):
+        # Source Image -> Target Image
+        ce = self.cross_entropy(logits, targets)
+
+        # Target Image -> Source Image
+        rce = self.cross_entropy(logits.transpose(-1, -2), targets.transpose(-1, -2))
+
+        # Loss
+        loss = self.alpha * ce + self.beta * rce
+        return loss
+    

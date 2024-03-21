@@ -19,9 +19,6 @@ class Combination(CacheModel):
         self.model2 = model2
 
         self.output_all = config.get('output_all', False)
-
-    def forward(self, image, category):
-        return self.get_features(image, category)
     
     def get_features(self, image, category):
         #features1 = self.model1.get_features(image, category) # SD

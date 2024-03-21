@@ -32,7 +32,6 @@ class Ensemble(CacheModel):
                 else:
                     image_preprocessed = image
                 features[k] = self.extractor(image_preprocessed, prompt=prompt, layers=self.layers, steps=self.steps)[self.steps[0]]
-                #features[k] = {0: interpolate(features[k][self.layers[0]], (300, 300), mode="bilinear")}
         else:
             features = self.extractor(image, prompt=prompt, layers=self.layers, steps=self.steps)
 

@@ -5,8 +5,8 @@ import torch
 import scipy.io
 import numpy as np
 from PIL import Image
-import webdataset as wds
 import torch.utils.data as data
+from pycocotools.coco import COCO as COCOAPI
 
 class ImageDataset(data.Dataset):
     """
@@ -14,10 +14,12 @@ class ImageDataset(data.Dataset):
     """
 
     def __init__(self, config, preprocess=None):
+        self.config = config
         self.dataset_directory = config['path']
         self.preprocess = preprocess
         self.split = config.get('split', 'test')
         self.image_pair = config.get('image_pair', False)
+        self.num_samples = config.get('num_samples', None)
         self.category_to_id = {}
         self.data = []
         self.load_data()
@@ -28,11 +30,17 @@ class ImageDataset(data.Dataset):
     def __len__(self):
         return len(self.data)
     
+    def create_category_to_id(self):
+        self.category_to_id = {}
+        for i, sample in enumerate(self.data):
+            category = sample['category']
+            if category not in self.category_to_id:
+                self.category_to_id[category] = []
+            self.category_to_id[category].append(i)
+
     def load_image(self, path):
         image = Image.open(path).convert('RGB')
         size = image.size
-        if self.preprocess is not None:
-            image = self.preprocess(image)
         return image, size
 
     def __getitem__(self, idx):
@@ -47,6 +55,9 @@ class ImageDataset(data.Dataset):
             sample['target_category'] = matching_sample['category']
         else:
             sample['image'], sample['size'] = self.load_image(sample['image_path'])
+
+        if self.preprocess is not None:
+            sample = self.preprocess(sample)
 
         return sample
 
@@ -78,9 +89,6 @@ class ImageNet(ImageDataset):
                         "image_path": sample_path,
                         "category": target
                     })
-                    if target not in self.category_to_id:
-                        self.category_to_id[target] = []
-                    self.category_to_id[target].append(len(self.data) - 1)
             elif self.split == "val":
                 syn_id = val_to_syn[entry]
                 target = syn_to_class[syn_id]
@@ -89,46 +97,36 @@ class ImageNet(ImageDataset):
                     "image_path": sample_path,
                     "category": target
                 })
-                if target not in self.category_to_id:
-                    self.category_to_id[target] = []
-                self.category_to_id[target].append(len(self.data) - 1)
 
-class ImageWebDataset(wds.WebDataset):
+class COCO(ImageDataset):
     """
-    WebDataset class for image datasets.
+    Dataset class for the COCO dataset.
     """
 
-    def __init__(self, dataset_directory, preprocess=None, split='train', image_pair=False, **kwargs):
-        self.dataset_directory = dataset_directory
-        self.preprocess = preprocess
-        self.split = split
-        self.image_pair = image_pair
-        self.category_to_id = {}
+    def load_data(self):
 
-        shards = [f for f in os.listdir(dataset_directory) if f.endswith('.tar') and split in f]
-        super().__init__(shards, **kwargs)
+        ann_file = os.path.join(self.dataset_directory, "annotations", f"instances_{self.split}2017.json")
+        coco = COCOAPI(ann_file)
 
-    def load_image(self, path):
-        image = Image.open(path).convert('RGB')
-        size = image.size
-        if self.preprocess is not None:
-            image = self.preprocess(image)
-        return image, size
-    
-    def __iter__(self):
-        for sample in super().__iter__():
-            sample = json.loads(sample)
-            if self.image_pair:
-                match_id = np.random.choice(self.category_to_id[sample['category']])
-                matching_sample = self.data[match_id]
-                sample['source_image'], sample['source_size'] = self.load_image(sample['image_path'])
-                sample['target_image'], sample['target_size'] = self.load_image(matching_sample['image_path'])
-                sample['source_category'] = sample['category']
-                sample['target_category'] = matching_sample['category']
-            else:
-                sample['image'], sample['size'] = self.load_image(sample['image_path'])
+        cat_ids = coco.getCatIds()
+        img_ids = coco.getImgIds()
 
-            yield sample
+        for img_id in img_ids:
+            img = coco.loadImgs(img_id)[0]
+            ann_ids = coco.getAnnIds(imgIds=img['id'], catIds=cat_ids, iscrowd=None)
+            anns = coco.loadAnns(ann_ids)
+            anns = [ann for ann in anns if ann['iscrowd'] == 0]
+
+            if len(anns) == 0:
+                continue
+
+            image_path = os.path.join(self.dataset_directory, self.split + "2017", img['file_name'])
+            categories = [coco.loadCats(ann['category_id'])[0]['name'] for ann in anns]
+
+            self.data.append({
+                "image_path": image_path,
+                "category": categories[0],
+            })
 
 class PASCALPart(ImageDataset):
     """
@@ -188,10 +186,6 @@ class PASCALPart(ImageDataset):
                 y1, y2 = min(y), max(y)
                 bbox.append([x1, y1, x2 - x1, y2 - y1])
 
-                if obj["class"] not in self.category_to_id:
-                    self.category_to_id[obj["class"]] = []
-                self.category_to_id[obj["class"]].append(len(self.data))
-
             self.data.append({
                 "image_path": image_path,
                 "categories": [obj["class"] for obj in annotations], 
@@ -225,5 +219,8 @@ class PASCALPart(ImageDataset):
             sample['target_mask'] = matching_sample['mask']
         else:
             sample['image'], sample['size'] = self.load_image(sample['image_path'])
+
+        if self.preprocess is not None:
+            sample = self.preprocess(sample)
 
         return sample

@@ -5,13 +5,13 @@ import h5py
 import copy
 import torch
 import imagesize
+import numpy as np
 from PIL import Image
 import torch.utils.data as data
 
 from datasets.correspondence import CorrespondenceDataset, SPair, PFWillow, CUB, S2K
-from datasets.image import ImageNet, PASCALPart
-from utils.correspondence import preprocess_image, flip_points, flip_bbox, rescale_points, rescale_bbox, normalize_features, flatten_features
-from utils.distillation import sample_points
+from datasets.image import ImageNet, PASCALPart, COCO
+from utils.correspondence import preprocess_image, flip_points, flip_bbox, rescale_points, rescale_bbox, normalize_features
 
 def read_dataset_config(config_path):
     """
@@ -52,6 +52,8 @@ def load_dataset(dataset_name, config, preprocess=None):
         return PASCALPart(config, preprocess)
     if dataset_name == 'S2K':
         return S2K(config, preprocess)
+    if dataset_name == 'COCO':
+        return COCO(config, preprocess)
     
     raise ValueError('Dataset not recognized.')
 
@@ -88,8 +90,11 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
                 keys.append(key)
         
         for sample in dataset.data:
-            process(sample['source_image_path'], sample['source_category'])
-            process(sample['target_image_path'], sample['target_category'])
+            if 'source_image_path' in sample:
+                process(sample['source_image_path'], sample['source_category'])
+                process(sample['target_image_path'], sample['target_category'])
+            else:
+                process(sample['image_path'], sample['category'])
         
         # Create dataloader
         dataloader = data.DataLoader(samples,
@@ -140,16 +145,45 @@ class CacheDataset(CorrespondenceDataset):
         self.config = dataset.config
         self.data = dataset.data
         self.preprocess = dataset.preprocess
+        self.image_pair = getattr(dataset, 'image_pair', False)
+        self.category_to_id = getattr(dataset, 'category_to_id', None)
         self.sample_points = getattr(dataset, 'sample_points', None)
-        self.file = h5py.File(cache_path, 'r')
+        if isinstance(cache_path, list):
+            self.file = [h5py.File(p, 'r') for p in cache_path]
+        else:
+            self.file = h5py.File(cache_path, 'r')
         self.cache = self.file
         self.load_images = False
 
+        # TODO: remove later
+        #self.features = torch.load('cache/ImageNet_embeddings.pth') #('cache/DINOv2_ViT-B_14_reg_SPair-71k.pth')
+        #self.features = (self.features - self.features.min()) / (self.features.max() - self.features.min()) # min-max normalize
+        #self.weights = self.features @ self.features.transpose(0, 1)
+        #self.weights = (self.weights - self.weights.min()) / (self.weights.max() - self.weights.min()) # min-max normalize
+
     def set_layer(self, layer):
-        self.cache = self.file[str(layer)]
+        if isinstance(self.cache, list):
+            self.cache = [f[str(l)] for f, l in zip(self.file, layer)]
+        else:
+            self.cache = self.file[str(layer)]
 
     def __getitem__(self, idx):
         sample = copy.deepcopy(self.data[idx]) # Prevent memory leak
+
+        if self.image_pair:
+            match_id = np.random.choice(self.category_to_id[sample['category']]) # sample a random image from the same category
+            #match_id = np.random.choice(len(self.data)) # random sample
+            #match_id = idx # same sample
+            #top_k = 10
+            #weights = self.weights[idx]
+            #_, top_k_indices = torch.topk(weights, top_k)
+            #match_id = top_k_indices[np.random.choice(top_k)]
+
+            matching_sample = self.data[match_id]
+            sample['source_image_path'] = sample['image_path']
+            sample['target_image_path'] = matching_sample['image_path']
+            sample['source_category'] = sample['category']
+            sample['target_category'] = matching_sample['category']
 
         if self.sample_points is not None:
             self.sample_points(sample)
@@ -170,8 +204,12 @@ class CacheDataset(CorrespondenceDataset):
         # Load features from cache
         source_key = os.path.basename(sample['source_image_path'])
         target_key = os.path.basename(sample['target_image_path'])
-        sample['source_features'] = torch.tensor(self.cache[source_key][()])
-        sample['target_features'] = torch.tensor(self.cache[target_key][()])
+        if isinstance(self.cache, list):
+            sample['source_features'] = torch.cat([normalize_features(torch.tensor(c[source_key][()])) for c in self.cache], dim=0)
+            sample['target_features'] = torch.cat([normalize_features(torch.tensor(c[target_key][()])) for c in self.cache], dim=0)
+        else:
+            sample['source_features'] = torch.tensor(self.cache[source_key][()])
+            sample['target_features'] = torch.tensor(self.cache[target_key][()])
         
         if self.preprocess is not None:
             sample = self.preprocess(sample)
@@ -188,11 +226,12 @@ class Preprocessor:
         rescale_data (bool): Whether to rescale points and bounding boxes (also sets source_size and target_size to image_size)
     """
 
-    def __init__(self, image_size, preprocess_image=True, image_range=[-1, 1], rescale_data=True, normalize_image=False):
+    def __init__(self, image_size, preprocess_image=True, image_range=[-1, 1], rescale_data=True, flip_data=True, normalize_image=False):
         self.image_size = image_size
         self.preprocess_image = preprocess_image
         self.image_range = image_range
         self.rescale_data = rescale_data
+        self.flip_data = flip_data
         self.normalize_image = normalize_image
 
     def process_image(self, image):
@@ -217,9 +256,79 @@ class Preprocessor:
             sample['target_size'] = self.image_size
         
         # Flip x, y and w, h axis
-        sample['source_points'] = flip_points(sample['source_points'])
-        sample['target_points'] = flip_points(sample['target_points'])
-        sample['source_bbox'] = flip_bbox(sample['source_bbox'])
-        sample['target_bbox'] = flip_bbox(sample['target_bbox'])
+        if self.flip_data:
+            sample['source_points'] = flip_points(sample['source_points'])
+            sample['target_points'] = flip_points(sample['target_points'])
+            sample['source_bbox'] = flip_bbox(sample['source_bbox'])
+            sample['target_bbox'] = flip_bbox(sample['target_bbox'])
 
         return sample
+
+def pairs_to_single(data):
+    """
+    Convert pairs of data to single data.
+
+    Args:
+        data (list): List of pairs of data
+
+    Returns:
+        list: List of single data
+    """
+    unique_data = []
+    unique_paths = {}
+    category_to_id = {}
+    for sample in data:
+        if sample['source_image_path'] not in unique_paths:
+            unique_paths[sample['source_image_path']] = True
+            unique_data.append({
+                'image_path': sample['source_image_path'],
+                'category': sample['source_category']
+            })
+            if sample['source_category'] not in category_to_id:
+                category_to_id[sample['source_category']] = []
+            category_to_id[sample['source_category']].append(len(unique_data)-1)
+        if sample['target_image_path'] not in unique_paths:
+            unique_paths[sample['target_image_path']] = True
+            unique_data.append({
+                'image_path': sample['target_image_path'],
+                'category': sample['target_category']
+            })
+            if sample['target_category'] not in category_to_id:
+                category_to_id[sample['target_category']] = []
+            category_to_id[sample['target_category']].append(len(unique_data)-1)
+
+    return unique_data, category_to_id
+
+def combine_caches(cache_paths, combined_path):
+    """
+    Combine multiple cache files into one.
+
+    Args:
+        cache_paths (list): List of cache file paths
+        combined_path (str): Path to combined cache file
+
+    Returns:
+        str: Path to combined cache file
+    """
+    with h5py.File(combined_path, 'w') as f:
+        for path in cache_paths:
+            with h5py.File(path, 'r') as g:
+                copy_items(g, f)
+
+    # Remove original cache files
+    for path in cache_paths:
+        os.remove(path)
+
+def copy_items(source_group, target_group):
+    """
+    Recursively copies items (groups and datasets) from source to target group.
+    source_group: Source HDF5 group object.
+    target_group: Target HDF5 group object.
+    """
+    for name, item in source_group.items():
+        if isinstance(item, h5py.Dataset):
+            target_group.create_dataset(name, data=item[()])
+        elif isinstance(item, h5py.Group):
+            if name not in target_group:
+                target_group.create_group(name)
+            copy_items(item, target_group[name])

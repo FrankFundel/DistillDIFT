@@ -106,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
     parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False, help='Precalculate features and use them for faster evaluation')
-    parser.add_argument('--cache_dir', type=str, default='cache', help='Directory to store cached features')
+    parser.add_argument('--cache_dir', type=str, default='/export/scratch/ra63des/cache', help='Directory to store cached features')
     parser.add_argument('--reset_cache', action=argparse.BooleanOptionalAction, default=False, help='Reset cache')
     parser.add_argument('--num_samples', type=int, default=None, help='Maximum number of samples to evaluate')
     parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=False, help='Plot results')

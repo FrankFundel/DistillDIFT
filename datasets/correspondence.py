@@ -16,6 +16,7 @@ class CorrespondenceDataset(data.Dataset):
     def __init__(self, config, preprocess=None):
         self.config = config
         self.dataset_directory = config['path']
+        self.image_pair = config.get('image_pair', False)
         self.preprocess = preprocess
         self.split = config.get('split', 'test')
         self.data = self.load_data()

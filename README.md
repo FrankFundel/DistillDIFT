@@ -8,13 +8,7 @@ We provide a well-written and documented code base for semantic correspondence, 
 _To be continued..._
 
 ## ⏳ ToDo
-- Split loss function and Multiple teachers
-- Ensemble diff
-
-- (Train autoencoder on dino-diff, train linear head on dino to predict same as autoencoder)
-
-- Implement sharded dataset
-- Distill unsupervised on ImageNet
+- Clean up code for: parallel cache (unique data outside of function?), image sampling
 
 ## 💼 Related Work
 
