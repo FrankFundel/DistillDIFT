@@ -8,7 +8,7 @@ We provide a well-written and documented code base for semantic correspondence, 
 _To be continued..._
 
 ## ⏳ ToDo
-- Clean up code for: parallel cache (unique data outside of function?), image sampling
+
 
 ## 💼 Related Work
 

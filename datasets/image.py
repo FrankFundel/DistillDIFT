@@ -20,9 +20,16 @@ class ImageDataset(data.Dataset):
         self.split = config.get('split', 'test')
         self.image_pair = config.get('image_pair', False)
         self.num_samples = config.get('num_samples', None)
+        self.image_sampling = config.get('image_sampling', 'random_category')
+        self.top_k = self.config.get('top_k', 10)
         self.category_to_id = {}
         self.data = []
         self.load_data()
+
+        if self.image_sampling == 'retrieval':
+            embeddings = torch.load(config.embeddings_path)
+            embeddings = (embeddings - embeddings.min()) / (embeddings.max() - embeddings.min()) # min-max normalize
+            self.weights = embeddings @ embeddings.transpose(0, 1)
 
     def load_data(self):
         raise NotImplementedError
@@ -47,7 +54,17 @@ class ImageDataset(data.Dataset):
         sample = copy.deepcopy(self.data[idx]) # prevent memory leak
 
         if self.image_pair:
-            match_id = np.random.choice(self.category_to_id[sample['category']]) # sample a random image from the same category
+            if self.image_sampling == 'retrieval':
+                weights = self.weights[idx]
+                _, top_k_indices = torch.topk(weights, self.top_k)
+                match_id = top_k_indices[np.random.choice(self.top_k)]
+            elif self.image_sampling == 'random_category':
+                match_id = np.random.choice(self.category_to_id[sample['category']])
+            elif self.image_sampling == 'random':
+                match_id = np.random.choice(len(self.data))
+            elif self.image_sampling == 'same':
+                match_id = idx
+
             matching_sample = self.data[match_id]
             sample['source_image'], sample['source_size'] = self.load_image(sample['image_path'])
             sample['target_image'], sample['target_size'] = self.load_image(matching_sample['image_path'])

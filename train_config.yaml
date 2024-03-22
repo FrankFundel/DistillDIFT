@@ -51,14 +51,6 @@ distilled_ws:
       registers: true
       layers: [11]
 
-  #teacher3_config:
-  #  model: 'clip'
-  #  model_config:
-  #    image_size: [336, 336]
-  #    image_range: [0, 1]
-  #    batch_size: 64
-  #    layers: [11]
-
   student_name: "distilled_model"
   student_config:
     weights: null
@@ -68,12 +60,12 @@ distilled_ws:
     linear_head: false
 
   batch_size: 1
-  num_epochs: 10 #10 # 2
+  num_epochs: 10
   learning_rate: 0.0001
   weight_decay: 0.05
   softmax_temperature: 0.01
   softargmax_beta: 1000.0
-  step_percent: 5.0 #50.0 # 1.0
+  step_percent: 5.0
   checkpoint_percent: 1.0
 
   mode: "distill"

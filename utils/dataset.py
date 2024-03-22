@@ -10,7 +10,7 @@ from PIL import Image
 import torch.utils.data as data
 
 from datasets.correspondence import CorrespondenceDataset, SPair, PFWillow, CUB, S2K
-from datasets.image import ImageNet, PASCALPart, COCO
+from datasets.image import ImageDataset, ImageNet, PASCALPart, COCO
 from utils.correspondence import preprocess_image, flip_points, flip_bbox, rescale_points, rescale_bbox, normalize_features
 
 def read_dataset_config(config_path):
@@ -145,9 +145,10 @@ class CacheDataset(CorrespondenceDataset):
         self.config = dataset.config
         self.data = dataset.data
         self.preprocess = dataset.preprocess
-        self.image_pair = getattr(dataset, 'image_pair', False)
-        self.category_to_id = getattr(dataset, 'category_to_id', None)
-        self.sample_points = getattr(dataset, 'sample_points', None)
+        self.category_to_id = self.config.get('category_to_id', None)
+        self.sample_points = self.config.get('sample_points', None)
+        self.image_sampling = self.config.get('image_sampling', 'ground_truth')
+        self.top_k = self.config.get('top_k', 10)
         if isinstance(cache_path, list):
             self.file = [h5py.File(p, 'r') for p in cache_path]
         else:
@@ -155,11 +156,10 @@ class CacheDataset(CorrespondenceDataset):
         self.cache = self.file
         self.load_images = False
 
-        # TODO: remove later
-        #self.features = torch.load('cache/ImageNet_embeddings.pth') #('cache/DINOv2_ViT-B_14_reg_SPair-71k.pth')
-        #self.features = (self.features - self.features.min()) / (self.features.max() - self.features.min()) # min-max normalize
-        #self.weights = self.features @ self.features.transpose(0, 1)
-        #self.weights = (self.weights - self.weights.min()) / (self.weights.max() - self.weights.min()) # min-max normalize
+        if self.image_sampling == 'retrieval':
+            embeddings = torch.load(self.config['embeddings_path'])
+            embeddings = (embeddings - embeddings.min()) / (embeddings.max() - embeddings.min()) # min-max normalize
+            self.weights = embeddings @ embeddings.transpose(0, 1)
 
     def set_layer(self, layer):
         if isinstance(self.cache, list):
@@ -170,14 +170,17 @@ class CacheDataset(CorrespondenceDataset):
     def __getitem__(self, idx):
         sample = copy.deepcopy(self.data[idx]) # Prevent memory leak
 
-        if self.image_pair:
-            match_id = np.random.choice(self.category_to_id[sample['category']]) # sample a random image from the same category
-            #match_id = np.random.choice(len(self.data)) # random sample
-            #match_id = idx # same sample
-            #top_k = 10
-            #weights = self.weights[idx]
-            #_, top_k_indices = torch.topk(weights, top_k)
-            #match_id = top_k_indices[np.random.choice(top_k)]
+        if self.image_sampling != 'ground_truth':
+            if self.image_sampling == 'retrieval':
+                weights = self.weights[idx]
+                _, top_k_indices = torch.topk(weights, self.top_k)
+                match_id = top_k_indices[np.random.choice(self.top_k)]
+            elif self.image_sampling == 'random_category':
+                match_id = np.random.choice(self.category_to_id[sample['category']])
+            elif self.image_sampling == 'random':
+                match_id = np.random.choice(len(self.data))
+            elif self.image_sampling == 'same':
+                match_id = idx
 
             matching_sample = self.data[match_id]
             sample['source_image_path'] = sample['image_path']
@@ -264,20 +267,20 @@ class Preprocessor:
 
         return sample
 
-def pairs_to_single(data):
+def CorrespondenceDataset_to_ImageDataset(dataset):
     """
-    Convert pairs of data to single data.
-
+    Convert CorrespondenceDataset to ImageDataset.
+    
     Args:
-        data (list): List of pairs of data
-
+        dataset (CorrespondenceDataset): Dataset
+    
     Returns:
-        list: List of single data
+        ImageDataset: Dataset
     """
     unique_data = []
     unique_paths = {}
     category_to_id = {}
-    for sample in data:
+    for sample in dataset.data:
         if sample['source_image_path'] not in unique_paths:
             unique_paths[sample['source_image_path']] = True
             unique_data.append({
@@ -297,7 +300,10 @@ def pairs_to_single(data):
                 category_to_id[sample['target_category']] = []
             category_to_id[sample['target_category']].append(len(unique_data)-1)
 
-    return unique_data, category_to_id
+    image_dataset = ImageDataset(dataset.config, dataset.preprocess)
+    image_dataset.data = unique_data
+    image_dataset.category_to_id = category_to_id
+    return image_dataset
 
 def combine_caches(cache_paths, combined_path):
     """

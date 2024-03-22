@@ -13,7 +13,8 @@ import torch.nn.functional as F
 from torch.nn.functional import interpolate, one_hot
 import torchvision
 
-from utils.dataset import read_dataset_config, load_dataset, cache_dataset, pairs_to_single, combine_caches, Preprocessor, CacheDataset
+from utils.dataset import CorrespondenceDataset, CorrespondenceDataset_to_ImageDataset
+from utils.dataset import read_dataset_config, load_dataset, cache_dataset, combine_caches, Preprocessor, CacheDataset
 from utils.model import read_model_config, load_model
 from utils.correspondence import points_to_idxs, idxs_to_points, flatten_features, normalize_features, rescale_points
 from utils.distillation import should_save, softmax_with_temperature, softargmax2d, sample_points, separate_foreground_copca, SCELoss
@@ -226,6 +227,7 @@ if __name__ == '__main__':
     parser.add_argument('--cache_dir', type=str, default='/export/scratch/ra63des/cache', help='Path to cache directory')
     parser.add_argument('--use_cache', action='store_true', help='Use cache')
     parser.add_argument('--reset_cache', action='store_true', help='Reset cache')
+    parser.add_argument('--parallel_cache', action='store_true', help='Parallelize caching')
     parser.add_argument('--only_tvmonitor', action='store_true', help='Only use tvmonitor category')
 
     # Parse arguments
@@ -239,6 +241,7 @@ if __name__ == '__main__':
     cache_dir = args.cache_dir
     use_cache = args.use_cache
     reset_cache = args.reset_cache
+    parallel_cache = args.parallel_cache
     only_tvmonitor = args.only_tvmonitor
 
     # Load model config
@@ -260,6 +263,7 @@ if __name__ == '__main__':
     softargmax_beta = model_config.get('softargmax_beta', 1000.0)
     step_percent = model_config.get('step_percent', 0.5)
     checkpoint_percent = model_config.get('checkpoint_percent', 1.0)
+    image_sampling = model_config.get('image_sampling', 'ground_truth')
 
     # Load model(s)
     if mode == 'distill':
@@ -302,12 +306,9 @@ if __name__ == '__main__':
     if hasattr(dataset, 'create_category_to_id'):
         dataset.create_category_to_id()
     
-    ##### Pairs to single ######
-    # if dataset is pairs and image_sampling is not ground_truth, convert to single
-    #unique_data, category_to_id = pairs_to_single(dataset.data)
-    #dataset.data = unique_data
-    #dataset.category_to_id = category_to_id
-    ######################
+    # Pairs to single
+    if image_sampling != 'ground_truth' and issubclass(type(dataset), CorrespondenceDataset):
+        dataset = CorrespondenceDataset_to_ImageDataset(dataset)
 
     # Initialize accelerator
     student_config = model_config if mode == 'train' else model_config['student_config']
@@ -321,12 +322,12 @@ if __name__ == '__main__':
     )
 
     # Cache dataset for each teacher and join caches
-    #with accelerator.main_process_first():
     if use_cache:
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
         cache_paths = [os.path.join(cache_dir, f"{model_name}_{dataset_name}_teacher{t+1}.h5") for t in range(len(teachers))]
-        if False:
+
+        if parallel_cache:
             temp_data = copy.deepcopy(dataset.data)
             for t, teacher in enumerate(teachers):
                 device_id = torch.cuda.current_device()
@@ -335,19 +336,27 @@ if __name__ == '__main__':
                 dataset.preprocess.image_range = teacher.config['image_range']
                 dataset.data = temp_data[device_id::accelerator.state.num_processes]
                 cache_dataset(teacher, dataset, cache_path, reset_cache, teacher.config['batch_size'], num_workers, accelerator.device, half_precision)
-                #cache_paths.append(cache_path)
                 teacher.to("cpu") # unload teacher from GPU
 
-            dataset.data = temp_data # reset data
-
+            # Combine caches
             accelerator.wait_for_everyone()
             if accelerator.is_main_process:
                 for t in range(len(teachers)):
-                    combined_path = os.path.join(cache_dir, f"{model_name}_{dataset_name}_teacher{t+1}.h5")
                     teacher_paths = [os.path.join(cache_dir, f"{model_name}_{dataset_name}_teacher{t+1}_device{i}.h5") for i in range(accelerator.state.num_processes)]
-                    combine_caches(teacher_paths, combined_path)
+                    combine_caches(teacher_paths, cache_paths[t])
             accelerator.wait_for_everyone()
 
+            # Reset data
+            dataset.data = temp_data
+        else:
+            with accelerator.main_process_first():
+                for t, teacher in enumerate(teachers):
+                    dataset.preprocess.image_size = teacher.config['image_size']
+                    dataset.preprocess.image_range = teacher.config['image_range']
+                    cache_dataset(teacher, dataset, cache_paths[t], reset_cache, teacher.config['batch_size'], num_workers, accelerator.device, half_precision)
+                    teacher.to("cpu") # unload teacher from GPU
+        
+        # Create CacheDataset and reset parameters
         dataset = CacheDataset(dataset, cache_paths)
         dataset.load_images = True # load images for student
         dataset.preprocess.image_size = image_size # student image size
