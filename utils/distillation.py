@@ -31,6 +31,9 @@ def softargmax2d(input, beta=100):
     Parameters:
         input (torch.Tensor): The input tensor for which the soft-argmax is to be computed.
         beta (float, optional): The beta parameter to adjust the smoothness of the output. Default is 100.
+
+    Returns:
+        torch.Tensor: The soft-argmax output. [B, 2]
     """
 
     *_, h, w = input.shape

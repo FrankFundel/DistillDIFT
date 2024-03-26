@@ -54,6 +54,9 @@ _To be continued..._
 
 - Supervised Training: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_s --dataset_name SPair-71k`
 - Weakly Supervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k`
+- Unsupervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_us --dataset_name COCO`
+
+For unsupervised distillation, retrieval-based image sampling is needed, therefore you first have to embed the dataset using the following command: `python embed.py --dataset_name COCO`
 
 ## ⚗️ Distilled models
 

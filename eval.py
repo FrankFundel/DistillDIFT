@@ -11,7 +11,7 @@ from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 from utils.visualization import plot_results
 
-def eval(model, dataloader, accelerator, pck_threshold, use_cache=False, save_histograms=False, save_predictions=False):
+def eval(model, dataloader, accelerator, pck_threshold, use_cache=False, save_histograms=False, save_predictions=False, window_softargmax=False):
     model.eval()
 
     pbar = tqdm(total=len(dataloader), disable=(not accelerator.is_main_process))
@@ -27,7 +27,7 @@ def eval(model, dataloader, accelerator, pck_threshold, use_cache=False, save_hi
     
     for batch in dataloader:
         if use_cache:
-            output = model.module.compute_correspondence(batch, return_histograms=save_histograms)
+            output = model.module.compute_correspondence(batch, return_histograms=save_histograms, window_softargmax=window_softargmax)
             if save_histograms:
                 predicted_points, hists = output
             else:
@@ -83,16 +83,16 @@ def eval(model, dataloader, accelerator, pck_threshold, use_cache=False, save_hi
         print(f"PCK_img: {(pck_img / keypoints) * 100:.2f}, PCK_bbox: {(pck_bbox / keypoints) * 100:.2f}")
     return pck_img / keypoints, pck_bbox / keypoints
 
-def evaluate(model, dataloader, accelerator, pck_threshold, layers=None, use_cache=False, save_histograms=False, save_predictions=False):
+def evaluate(model, dataloader, accelerator, pck_threshold, layers=None, use_cache=False, save_histograms=False, save_predictions=False, window_softargmax=False):
     if layers is None:
-        return eval(model, dataloader, accelerator, pck_threshold, use_cache, save_histograms, save_predictions)
+        return eval(model, dataloader, accelerator, pck_threshold, use_cache, save_histograms, save_predictions, window_softargmax)
 
     pck_img = []
     pck_bbox = []
     for l in layers:
         print(f"Layer {l}:")
         dataloader.dataset.set_layer(l)
-        pck_img_l, pck_bbox_l = eval(model, dataloader, accelerator, pck_threshold, use_cache, save_histograms, save_predictions)
+        pck_img_l, pck_bbox_l = eval(model, dataloader, accelerator, pck_threshold, use_cache, save_histograms, save_predictions, window_softargmax)
         pck_img.append(pck_img_l)
         pck_bbox.append(pck_bbox_l)
     return pck_img, pck_bbox
@@ -142,6 +142,7 @@ if __name__ == '__main__':
     image_range = model_config.get('image_range', (-1, 1))
     layers = model_config.get('layers', None)
     half_precision = model_config.get('half_precision', False)
+    window_softargmax = model_config.get('window_softargmax', False)
 
     # Initialize accelerator
     accelerator = Accelerator(
@@ -210,7 +211,7 @@ if __name__ == '__main__':
         dataloader = accelerator.prepare(dataloader)
 
         with torch.set_grad_enabled(grad_enabled):
-            pck_img, pck_bbox = evaluate(model, dataloader, accelerator, pck_threshold, layers, use_cache, save_histograms, save_predictions)
+            pck_img, pck_bbox = evaluate(model, dataloader, accelerator, pck_threshold, layers, use_cache, save_histograms, save_predictions, window_softargmax)
 
         if accelerator.is_main_process:
             if plot and layers is not None:

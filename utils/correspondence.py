@@ -215,7 +215,74 @@ def per_sample_min_max_normalization(x):
     x_ = (x_ - min_val) / (max_val - min_val)
     return x_.reshape(bs, *shape)
 
-def compute_correspondence(source_features, target_features, source_points, source_size, target_size=None, return_histograms=False, batch_mode=True):
+import torch.nn.functional as F
+
+def softargmax2d(input, beta=100):
+    """
+    Apply the soft-argmax function on the input tensor.
+
+    Parameters:
+        input (torch.Tensor): The input tensor for which the soft-argmax is to be computed.
+        beta (float, optional): The beta parameter to adjust the smoothness of the output. Default is 100.
+
+    Returns:
+        torch.Tensor: The soft-argmax output. [B, 2]
+    """
+
+    *_, h, w = input.shape
+
+    input = input.reshape(*_, h * w)
+    input = F.softmax(beta * input, dim=-1)
+
+    indices_c, indices_r = torch.meshgrid(
+        torch.linspace(0, 1, w),
+        torch.linspace(0, 1, h),
+        indexing='xy'
+    )
+
+    indices_r = indices_r.reshape(-1, h * w).to(input.device)
+    indices_c = indices_c.reshape(-1, h * w).to(input.device)
+
+    result_r = torch.sum((h - 1) * input * indices_r, dim=-1)
+    result_c = torch.sum((w - 1) * input * indices_c, dim=-1)
+
+    return torch.stack([result_r, result_c], dim=-1)
+
+def window_softargmax2d(similarity_map, predicted_points, window_size=125, beta=50):
+    """
+    Apply the window soft-argmax function on the input tensor.
+
+    Parameters:
+        similarity_map (torch.Tensor): The similarity map tensor. [B, N, HxW]
+        predicted_points (torch.Tensor): The predicted points tensor. [B, N, 2]
+        window_size (int, optional): The size of the window. Default is 15.
+        beta (float, optional): The beta parameter to adjust the smoothness of the output. Default is 100.
+
+    Returns:
+        torch.Tensor: The window soft-argmax output. [B, 2]
+    """
+
+    h, w = similarity_map.shape[-2:]
+    windows = []
+    for n, p in enumerate(predicted_points.permute(1, 0, 2)):  # [N, B, 2]
+        window_masks = []
+        for b in range(p.shape[0]):
+            mask = torch.zeros_like(similarity_map[:, n])  # [B, H, W]
+            x_center, y_center = p[b].long()
+            x_min = max(x_center - window_size // 2, 0)
+            x_max = min(x_center + window_size // 2, h)
+            y_min = max(y_center - window_size // 2, 0)
+            y_max = min(y_center + window_size // 2, w)
+            mask[:, x_min:x_max+1, y_min:y_max+1] = 1
+            window_masks.append(mask)
+        window_masks = torch.stack(window_masks, dim=0)  # [B, H, W]
+        masked_similarity = similarity_map[:, n] * window_masks # [B, H, W]
+        windows.append(masked_similarity)
+    windows = torch.stack(windows, dim=1)  # [B, N, H, W]
+    predicted_points = softargmax2d(windows, beta).squeeze(2)  # [B, N, 2]
+    return predicted_points
+
+def compute_correspondence(source_features, target_features, source_points, source_size, target_size=None, return_histograms=False, batch_mode=True, window_softargmax=False):
     """
     Compute correspondence between source and target features using points from the source image.
 
@@ -260,6 +327,10 @@ def compute_correspondence(source_features, target_features, source_points, sour
     # Get max similarity for each point and convert to coordinates (y, x)
     predicted_idx = torch.argmax(similarity_map, dim=-1) # [B, N]
     predicted_points = idxs_to_points(predicted_idx, (th, tw)) # [B, N, 2]
+
+    # Apply window soft-argmax (optional)
+    if window_softargmax:
+        predicted_points = window_softargmax2d(similarity_map.reshape(*similarity_map.shape[:2], th, tw), predicted_points)
 
     if not batch_mode:
         predicted_points = predicted_points.squeeze(0)

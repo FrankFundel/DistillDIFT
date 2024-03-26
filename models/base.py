@@ -31,7 +31,7 @@ class CacheModel(BaseModel):
     def get_features(self, image, category):
         raise NotImplementedError
 
-    def compute_correspondence(self, batch, return_histograms=False):
+    def compute_correspondence(self, batch, return_histograms=False, window_softargmax=False):
         if isinstance(batch['source_points'], list):
             predicted_points = []
             batch_size = len(batch['source_features'])
@@ -42,7 +42,8 @@ class CacheModel(BaseModel):
                                                             batch['source_size'][b],
                                                             batch['target_size'][b],
                                                             return_histograms,
-                                                            batch_mode=False))
+                                                            False,
+                                                            window_softargmax))
         else: # points are tensors
             predicted_points = compute_correspondence(batch['source_features'],
                                                     batch['target_features'],
