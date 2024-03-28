@@ -15,6 +15,7 @@ from models.ensemble import Ensemble
 from models.prompt import Prompt
 from models.dit import DiT
 from models.ijepa import IJEPA
+from models.diffusion_hook import DiffusionHook
 
 from models.distilled_model import DistilledModel
 
@@ -69,6 +70,8 @@ def load_model(model_name, config):
         return CLIP(config)
     if model_name.startswith('ijepa'):
         return IJEPA(config)
+    if model_name.startswith('diff_hook'):
+        return DiffusionHook(config)
     
     # Experimenatal models
     if model_name.startswith('combination'):
