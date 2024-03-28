@@ -241,9 +241,6 @@ class Preprocessor:
         return preprocess_image(image, self.image_size, range=self.image_range, norm=self.normalize_image)
 
     def __call__(self, sample):
-        source_size = sample['source_size']
-        target_size = sample['target_size']
-
         # Preprocess images
         if self.preprocess_image:
             sample['source_image'] = self.process_image(sample['source_image'])
@@ -251,6 +248,8 @@ class Preprocessor:
 
         # Rescale points and bounding boxes
         if self.rescale_data:
+            source_size = sample['source_size']
+            target_size = sample['target_size']
             sample['source_points'] = rescale_points(sample['source_points'], source_size, self.image_size)
             sample['target_points'] = rescale_points(sample['target_points'], target_size, self.image_size)
             sample['source_bbox'] = rescale_bbox(sample['source_bbox'], source_size, self.image_size)

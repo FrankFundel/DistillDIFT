@@ -3,7 +3,7 @@ import torch
 import argparse
 from PIL import Image
 from tqdm import tqdm
-from utils.dataset import read_dataset_config, load_dataset, pairs_to_single, Preprocessor
+from utils.dataset import read_dataset_config, load_dataset, CorrespondenceDataset_to_ImageDataset, Preprocessor, CorrespondenceDataset
 from utils.correspondence import preprocess_image
 
 dinov2_vitb14_reg = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14_reg')
@@ -40,11 +40,11 @@ if num_samples is not None:
 if hasattr(dataset, 'create_category_to_id'):
     dataset.create_category_to_id()
 
-#unique_data, _ = pairs_to_single(dataset.data)
-unique_data = dataset.data
+if issubclass(type(dataset), CorrespondenceDataset):
+    dataset = CorrespondenceDataset_to_ImageDataset(dataset)
 
 features = []
-for sample in tqdm(unique_data):
+for sample in tqdm(dataset.data):
     image_path = sample['image_path']
     image = Image.open(image_path)
     image = preprocess_image(image, image_size, [0, 1], False)

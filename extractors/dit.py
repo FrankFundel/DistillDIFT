@@ -38,7 +38,7 @@ class HookExtractor(nn.Module):
         def hook(module, input, output):
             b, n, c = output.shape
             print(output.shape, layer_idx)
-            self.features[layer_idx] = output.permute(0, 2, 1)[int(b/2):].reshape(int(b/2), c, 64, 64)
+            self.features[layer_idx] = output.permute(0, 2, 1)[int(b/2):].reshape(int(b/2), c, 48, 48)
         return hook
 
     def __call__(self, images, prompt, layers=[5], steps=[101]):
@@ -66,6 +66,9 @@ class HookExtractor(nn.Module):
             else:
                 raise ValueError("Batch-size does not match number of prompts")
         
+        # TODO: remove
+        self.prompt_embeddings = prompt_embeddings
+        
         # Encode images
         latents = self.pipe.vae.encode(images).latent_dist.sample() * self.pipe.vae.config.scaling_factor
 
@@ -78,7 +81,7 @@ class HookExtractor(nn.Module):
             latents_noisy = self.pipe.scheduler.add_noise(latents, noise, ti)
             
             self.pipe(
-                latents=latents,
+                latents=latents_noisy,
                 num_inference_steps=1,
                 num_images_per_prompt=1,
                 negative_prompt=None, 

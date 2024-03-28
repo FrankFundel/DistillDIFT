@@ -69,3 +69,4 @@ _To be continued..._
 - S2K Benchmark demo: `notebooks/s2k_demo.ipynb`
 - Qualitative analysis: `notebooks/qualitative_analysis.ipynb`
 - Quantitative analysis: `notebooks/quantitative_analysis.ipynb`
+- Cross-Attention Maps: `notebooks/cross_attention_maps.ipynb`
