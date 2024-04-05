@@ -188,4 +188,70 @@ class SCELoss(torch.nn.Module):
         # Loss
         loss = self.alpha * ce + self.beta * rce
         return loss
-    
+
+def get_distance_mutual_nn(feature1, feature2):
+    """
+    Calculate the distance between the mutual nearest neighbors of two features.
+
+    Parameters:
+        feature1 (torch.Tensor): The first feature tensor. [HW, C]
+        feature2 (torch.Tensor): The second feature tensor. [HW, C]
+
+    Returns:
+        float: The average distance between the mutual nearest neighbors.
+    """
+
+    distances_1to2 = torch.cdist(feature1, feature2) # (3600,3600)
+
+    nearest_patch_indices_1to2 = torch.argmin(distances_1to2, dim=1)
+    nearest_patch_indices_2to1 = torch.argmin(distances_1to2, dim=0)
+
+    # get the mutual nearest neighbors
+    mutual_nn_1to2 = torch.zeros_like(nearest_patch_indices_1to2)
+    mutual_nn_2to1 = torch.zeros_like(nearest_patch_indices_2to1)
+    for i in range(len(nearest_patch_indices_1to2)):
+        if nearest_patch_indices_2to1[nearest_patch_indices_1to2[i]] == i:
+            mutual_nn_1to2[i] = 1
+            mutual_nn_2to1[nearest_patch_indices_1to2[i]] = 1
+
+    # get the average distance of the mutual nearest neighbors
+    avg_distance_1to2 = torch.min(distances_1to2, dim=1)[0][mutual_nn_1to2==1].mean()
+    return avg_distance_1to2
+
+SPAIR_FLIP = {
+    'aeroplane': [0,1,2,3,[4,5],[6,7],[8,9],[10,11],[12,13],[14,15],[16,17],[18,19],[20,21],22,23,24],
+    'bicycle': [0,1,[2,3],4,5,[6,7],8,[9,10],11,12,13], 
+    'bird': [0,[1,2],3,[4,5],6,[7,8],9,[10,11],[12,13],[14,15],16],
+    'boat': [0,[1,2],[3,4],[5,6],[7,8],[9,10],[11,12],13],
+    'bottle': [[0,1],[2,3],[4,5],[6,7],[8,9]],
+    'bus': [[0,1],[2,3],[5,6],4,7,[8,18],[11,21],[9,19],[12,22],[10,20],[13,23],[14,15],[24,25],[16,17],[26,27], 28, 29, 30], 
+    'car':[[0,1],[2,3],4,5,[6,7],8,9,[10,20],[13,23],[11,21],[14,24],[12,22],[15,25],[16,17],[26,27],[18,19],[28,29]],
+    'cat':[[0,1],[2,3],[4,5],[6,7],8,[9,10],[11,12],13,14],
+    'chair':[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13]],
+    'cow':[[0,1],[2,3],[4,5],[6,7],8,[9,10],[11,12],13,14,[15,16],[17,18],[19,20]],
+    'dog':[[0,1],[2,3],[4,5],6,7,8,[9,10],[11,12],13,14,15],
+    'horse':[[0,1],[2,3],[4,5],[6,7],8,9,[10,11],[12,13],14,15,[16,17],[18,19]],
+    'motorbike':[[0,1],[2,3],4,5,6,7,8,9,10,11,12],
+    'person':[[0,1],[2,3],4,5,6,7,[8,9],[10,11],[12,13],[14,15],[16,17],[18,19]],
+    'pottedplant':[[0,2],1,3,[4,5],[6,8],7],
+    'sheep':[[0,1],[2,3],[4,5],[6,7],8,[9,10],[11,12],13,14,[15,16],[17,18],[19,20]],
+    'train':[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13],[14,15],[16,17]],
+    'tvmonitor':[[0,2],[4,6],1,5,[3,7],[8,10],[12,14],9,13,[11,15]]
+}
+
+def permute_indices(flip_list, vis):
+    # Flatten the list to find the max index
+    flat_list = [item for sublist in flip_list for item in (sublist if isinstance(sublist, list) else [sublist])]
+    max_idx = max(flat_list)
+
+    # Create a list of indices from 0 to max index
+    indices = list(range(max_idx + 1))
+
+    # Permute the indices where necessary
+    for item in flip_list:
+        if isinstance(item, list):
+            # if all elem in item is True in vis, then flip
+            if all(vis[i] for i in item):
+                for i in range(len(item)):
+                    indices[item[i]] = item[(i + 1) % len(item)]
+    return indices

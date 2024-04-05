@@ -93,7 +93,7 @@ dinov2_b14:
   patch_size: 14
   registers: false
   image_range: [0, 1]
-  layers: [2, 4, 6, 9, 10, 11]
+  layers: [11] #[2, 4, 6, 9, 10, 11]
 
 dinov2_b14_reg:
   image_size: [840, 840]
@@ -104,7 +104,6 @@ dinov2_b14_reg:
   registers: true
   image_range: [0, 1]
   layers: [11] # [2, 4, 6, 9, 10, 11]
-  window_softargmax: true # TODO: Experimental
 
 dinov2_large:
   image_size: [840, 840]
@@ -245,19 +244,6 @@ prompt:
   step: 101
   prompt_mode: 'caption'
 
-############ Distilled Models ############
-
-distilled_model:
-  image_size: [434, 434]
-  batch_size: 64
-  image_range: [0, 1]
-  weights: "/export/home/ra63des/DistillDIFT/checkpoints/distilled_us_best_coco_40/pytorch_model.bin" # _1.bin for uncached distillation
-  rank: 8
-  lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-  lora_dropout: 0
-  linear_head: false
-  window_softargmax: true
-
 ############ Analysis ############
 
 dit_add_analysis_layers:
@@ -307,3 +293,17 @@ dinov2_analysis:
   registers: true
   image_range: [0, 1]
   layers: [2, 6, 9, 11]
+
+############ Distilled Models ############
+
+distilled_model:
+  image_size: [434, 434]
+  batch_size: 1 # 64
+  image_range: [0, 1]
+  weights: "/export/home/ra63des/DistillDIFT/checkpoints/distilled_us_best_coco_40/pytorch_model.bin" # _1.bin for uncached distillation
+  rank: 8
+  lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  lora_dropout: 0
+  linear_head: false
+  window_softargmax: true
+  pose_align: true

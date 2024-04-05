@@ -7,6 +7,7 @@ thirdparty
 logs
 checkpoints
 analysis_data
+example_flip_images
 
 *.pt
 *.pth

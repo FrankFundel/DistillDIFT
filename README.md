@@ -37,7 +37,7 @@ _To be continued..._
     - `layers`: list of layers to evaluate, only possible together with `--use_cache`
     - Additional options are passed to the model
 
-4. Run the evaluation script: `accelerate launch --multi_gpu --num_processes [n] python eval.py [options]`
+4. Run the evaluation script: `accelerate launch --multi_gpu --num_processes [n] eval.py [options]`
     - Make sure to set visible GPUs e.g. `export CUDA_VISIBLE_DEVICES=0`
     - Some models need a different diffusers version:
         - hedlin: `diffusers==0.8.0`
@@ -48,7 +48,7 @@ _To be continued..._
     - Use `--plot` to plot the results of layerwise evaluation
     - When using cache, remember to use `--reset_cache` if you made changes on the model, else the features will stay the same
 
-    Example: `accelerate launch --multi_gpu --num_processes 4 python eval.py --use_cache --reset_cache`
+    Example: `accelerate launch --multi_gpu --num_processes 4 eval.py distilled_model --use_cache --reset_cache`
 
 ## 🔬 Training
 

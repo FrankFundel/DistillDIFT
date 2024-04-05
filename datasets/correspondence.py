@@ -71,6 +71,9 @@ class SPair(CorrespondenceDataset):
             source_bbox[2:] -= source_bbox[:2]
             target_bbox[2:] -= target_bbox[:2]
 
+            # Mutual visible keypoint ids
+            mutual_visible_idx = [int(k) for k in annotation['kps_ids']]
+
             data.append({
                 'source_image_path': source_image_path,
                 'target_image_path': target_image_path,
@@ -79,7 +82,8 @@ class SPair(CorrespondenceDataset):
                 'source_bbox': source_bbox,
                 'target_bbox': target_bbox,
                 'source_category': category,
-                'target_category': category
+                'target_category': category,
+                'mutual_visible_idx': mutual_visible_idx
             })
         return data
 
