@@ -14,16 +14,94 @@ distilled_s:
   batch_size: 1
   num_epochs: 25
   learning_rate: 0.0001 # 0.0001 for LoRA and linear head, 0.00001 for full fine-tune, /10 for softmax with cross-entropy
-  gradient_accumulation_steps: 1
   mode: "train"
   scheduler_type: "constant"
   similarity_method: "soft_argmax"
   loss_function: "mse"
   half_precision: false
+  checkpoint_percent: 1.0
+  softmax_temperature: 0.01
+  softargmax_beta: 1000.0
+
+# left-from-right
+distilled_lr:
+  image_size: [434, 434]
+  image_range: [0, 1]
+  weights: "/export/home/ra63des/DistillDIFT/checkpoints/distilled_us_best_coco_40/pytorch_model.bin"
+  rank: 8
+  lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  lora_dropout: 0.1
+  linear_head: true
+
+  batch_size: 1
+  num_epochs: 15
+  learning_rate: 0.00001
+  weight_decay: 0.05
+  mode: "train"
+  scheduler_type: "step"
+  similarity_method: "softmax"
+  loss_function: "cross_entropy"
+  half_precision: false
+  step_percent: 5.0
+  step_gamma: 0.5
+  checkpoint_percent: 1.0
+  softmax_temperature: 0.01
 
 ############ Distillation ############
 
 distilled_ws:
+  image_size: [434, 434]
+  image_range: [0, 1]
+
+  teacher1_config:
+    model: "ensemble_ts"
+    model_config:
+      image_size: [980, 980]
+      image_range: [-1, 1]
+      batch_size: 8
+      model: "stabilityai/sdxl-turbo"
+      layers: [1]
+      steps: [51, 101, 151, 201]
+      ensemble_size: 4
+      random_cropping: false
+  
+  teacher2_config:
+    model: 'dinov2_b14_reg'
+    model_config:
+      image_size: [434, 434]
+      image_range: [0, 1]
+      batch_size: 32
+      version: 2
+      model_size: 'b'
+      patch_size: 14
+      registers: true
+      layers: [11]
+
+  student_name: "distilled_model"
+  student_config:
+    weights: null
+    rank: 8
+    lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    lora_dropout: 0.05
+    linear_head: false
+
+  batch_size: 1
+  num_epochs: 10
+  learning_rate: 0.0001
+  weight_decay: 0.05
+  softmax_temperature: 0.01
+  softargmax_beta: 1000.0
+  step_percent: 5.0
+  checkpoint_percent: 1.0
+
+  mode: "distill"
+  scheduler_type: "step"
+  sampling_method: "full"
+  similarity_method: "softmax"
+  loss_function: "cross_entropy"
+  half_precision: false
+
+distilled_us:
   image_size: [434, 434]
   image_range: [0, 1]
 

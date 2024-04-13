@@ -307,3 +307,15 @@ distilled_model:
   linear_head: false
   window_softargmax: true
   pose_align: true
+
+distilled_model_lr:
+  image_size: [434, 434]
+  batch_size: 1 # 64
+  image_range: [0, 1]
+  weights: "/export/home/ra63des/DistillDIFT/checkpoints/distilled_lr_best/pytorch_model.bin"
+  rank: 8
+  lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  lora_dropout: 0
+  linear_head: true
+  window_softargmax: true
+  pose_align: true

@@ -188,20 +188,32 @@ class SCELoss(torch.nn.Module):
         # Loss
         loss = self.alpha * ce + self.beta * rce
         return loss
+    
+class CLIPLoss(torch.nn.Module):
+    def __init__(self, logit_scale=1.0):
+        super(CLIPLoss, self).__init__()
+        self.logit_scale = logit_scale
+
+    def forward(self, source_features, target_features):
+        source_logits = self.logit_scale * source_features @ target_features.transpose(-1, -2) # [B, N, N]
+        target_logits = self.logit_scale * target_features @ source_features.transpose(-1, -2) # [B, N, N]
+        labels = torch.arange(source_logits.shape[1], device=source_features.device, dtype=torch.long).unsqueeze(0) # [1, N]
+        loss = F.cross_entropy(source_logits, labels) + F.cross_entropy(target_logits, labels)
+        return loss / 2
 
 def get_distance_mutual_nn(feature1, feature2):
     """
     Calculate the distance between the mutual nearest neighbors of two features.
 
     Parameters:
-        feature1 (torch.Tensor): The first feature tensor. [HW, C]
-        feature2 (torch.Tensor): The second feature tensor. [HW, C]
+        feature1 (torch.Tensor): The first feature tensor.
+        feature2 (torch.Tensor): The second feature tensor.
 
     Returns:
         float: The average distance between the mutual nearest neighbors.
     """
 
-    distances_1to2 = torch.cdist(feature1, feature2) # (3600,3600)
+    distances_1to2 = torch.cdist(feature1, feature2)
 
     nearest_patch_indices_1to2 = torch.argmin(distances_1to2, dim=1)
     nearest_patch_indices_2to1 = torch.argmin(distances_1to2, dim=0)

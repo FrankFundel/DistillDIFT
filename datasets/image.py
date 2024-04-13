@@ -27,7 +27,7 @@ class ImageDataset(data.Dataset):
         self.load_data()
 
         if self.image_sampling == 'retrieval':
-            embeddings = torch.load(config.embeddings_path)
+            embeddings = torch.load(self.config['embeddings_path'])
             embeddings = (embeddings - embeddings.min()) / (embeddings.max() - embeddings.min()) # min-max normalize
             self.weights = embeddings @ embeddings.transpose(0, 1)
 

@@ -136,17 +136,15 @@ def cache_dataset(model, dataset, cache_path, reset_cache, batch_size, num_worke
     print("Caching complete.")
     return CacheDataset(dataset, cache_path)
 
-class CacheDataset(CorrespondenceDataset):
+class CacheDataset(data.Dataset):
     """
-    Wrapper for CorrespondenceDataset that loads features from cache instead of images.
+    Wrapper that loads features from cache instead of images.
     """
     
     def __init__(self, dataset, cache_path):
         self.config = dataset.config
         self.data = dataset.data
         self.preprocess = dataset.preprocess
-        self.category_to_id = self.config.get('category_to_id', None)
-        self.sample_points = self.config.get('sample_points', None)
         self.image_sampling = self.config.get('image_sampling', 'ground_truth')
         self.top_k = self.config.get('top_k', 10)
         if isinstance(cache_path, list):
@@ -155,17 +153,22 @@ class CacheDataset(CorrespondenceDataset):
             self.file = h5py.File(cache_path, 'r')
         self.cache = self.file
         self.load_images = False
+        self.category_to_id = None
 
         if self.image_sampling == 'retrieval':
             embeddings = torch.load(self.config['embeddings_path'])
             embeddings = (embeddings - embeddings.min()) / (embeddings.max() - embeddings.min()) # min-max normalize
             self.weights = embeddings @ embeddings.transpose(0, 1)
+            print("Embeddings loaded.")
 
     def set_layer(self, layer):
         if isinstance(self.cache, list):
             self.cache = [f[str(l)] for f, l in zip(self.file, layer)]
         else:
             self.cache = self.file[str(layer)]
+
+    def __len__(self):
+        return len(self.data)
 
     def __getitem__(self, idx):
         sample = copy.deepcopy(self.data[idx]) # Prevent memory leak
@@ -187,9 +190,6 @@ class CacheDataset(CorrespondenceDataset):
             sample['target_image_path'] = matching_sample['image_path']
             sample['source_category'] = sample['category']
             sample['target_category'] = matching_sample['category']
-
-        if self.sample_points is not None:
-            self.sample_points(sample)
 
         if self.load_images:
             # Load image

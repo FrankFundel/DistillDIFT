@@ -29,8 +29,15 @@ ImageNet:
 
 COCO:
   path: "/export/group/datasets/coco"
+  embeddings_path: "/export/scratch/ra63des/cache/COCO_embeddings.pth"
   random_sampling: true
   num_samples: 12000
 
 PASCALPart:
   path: "/export/group/datasets/PASCAL-Part"
+
+############ 3D Datasets ############
+
+CO3D:
+  path: "/export/group/datasets/co3d"
+  random_sampling: true

@@ -8,7 +8,9 @@ We provide a well-written and documented code base for semantic correspondence, 
 _To be continued..._
 
 ## ⏳ ToDo
-
+- Clean up code
+- Remove private paths
+- Update README.md
 
 ## 💼 Related Work
 
@@ -53,8 +55,8 @@ _To be continued..._
 ## 🔬 Training
 
 - Supervised Training: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_s --dataset_name SPair-71k`
-- Weakly Supervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k`
-- Unsupervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_us --dataset_name COCO`
+- Weakly Supervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_ws --dataset_name SPair-71k --use_cache`
+- Unsupervised Distillation: `accelerate launch --multi_gpu --num_processes 4 train.py distilled_us --dataset_name COCO --use_cache`
 
 For unsupervised distillation, retrieval-based image sampling is needed, therefore you first have to embed the dataset using the following command: `python embed.py --dataset_name COCO`
 

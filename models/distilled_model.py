@@ -56,24 +56,28 @@ class DistilledModel(CacheModel):
     def __init__(self, config):
         super(DistilledModel, self).__init__(config)
         
-        self.weights = config["weights"]
-        self.rank = config["rank"]
-        self.linear_head = config["linear_head"]
-        self.lora_layers = config["lora_layers"]
-        self.lora_dropout = config["lora_dropout"]
+        self.weights = config.get("weights", None)
+        self.rank = config.get("rank", None)
+        self.linear_head = config.get("linear_head", False)
+        self.lora_layers = config.get("lora_layers", [])
+        self.lora_dropout = config.get("lora_dropout", 0.0)
+        self.freeze = config.get("freeze", None)
 
         self.patch_size = 14
         self.model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14_reg', pretrained=True)
 
+        if self.freeze is None:
+            self.freeze = self.rank is not None or self.linear_head
+
         # Freeze all layers
-        if self.linear_head or self.rank is not None:
+        if self.freeze:
             for param in self.model.parameters():
                 param.requires_grad = False
             self.params_to_optimize = []
         else:
             for param in self.model.parameters():
                 param.requires_grad = True
-            self.params_to_optimize = self.model.parameters()
+            self.params_to_optimize = list(self.model.parameters())
         
         if self.rank is not None:
             self.add_lora(self.model, self.rank)
