@@ -159,8 +159,8 @@ def points_to_idxs(points, size):
         torch.Tensor: [B, N] where each point is an index
     """
     h, w = size
-    points_y = points[:, :, 0].clamp(0, h - 1)
-    points_x = points[:, :, 1].clamp(0, w - 1)
+    points_y = points[:, :, 0].float().clamp(0, h - 1)
+    points_x = points[:, :, 1].float().clamp(0, w - 1)
     idxs = w * torch.round(points_y).long() + torch.round(points_x).long()
     return idxs
 
