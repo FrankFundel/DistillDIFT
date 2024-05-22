@@ -1,6 +1,7 @@
 absl-py==2.1.0
 accelerate==0.29.2
 addict==2.4.0
+adjustText==1.1.1
 aiofiles==23.2.1
 altair==5.2.0
 annotated-types==0.6.0
