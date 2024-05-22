@@ -386,7 +386,7 @@ if __name__ == '__main__':
         dataset.load_images = True # load images for student
         dataset.preprocess.image_size = image_size # student image size
         dataset.preprocess.image_range = [0, 1] # student image range
-        #dataset.set_layer([t.layers[0] for t in teachers]) # TODO: handle differently
+        dataset.set_layer([t.layers[0] for t in teachers]) # TODO: handle differently
 
     # Filter for tv-monitor
     if only_tvmonitor:

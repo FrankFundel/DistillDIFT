@@ -19,7 +19,7 @@ class Diffusion(CacheModel):
         self.extractor = SDExtractor(self.model, self.half_precision)
     
     def get_features(self, image, category):
-        prompt = [f'a photo of a {c}' for c in category]
+        prompt = [f'a photo of a {c}' for c in ['test']]
         if isinstance(self.step, int):
             features = self.extractor(image, prompt=prompt, layers=self.layers, steps=[self.step])[self.step]
             return list(features.values())

@@ -93,6 +93,7 @@ distilled_ws:
   softmax_temperature: 0.01
   softargmax_beta: 1000.0
   step_percent: 5.0
+  step_gamma: 0.1
   checkpoint_percent: 1.0
 
   mode: "distill"
@@ -133,18 +134,19 @@ distilled_us:
   student_name: "distilled_model"
   student_config:
     weights: null
-    rank: 8
+    rank: 12
     lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    lora_dropout: 0.05
-    linear_head: false
+    lora_dropout: 0.1 # 0.05
+    linear_head: true
+    #weights: "/export/home/ra63des/DistillDIFT/checkpoints/distilled_us_best_coco_40/pytorch_model.bin"
 
   batch_size: 1
   num_epochs: 10
   learning_rate: 0.0001
   weight_decay: 0.05
   softmax_temperature: 0.01
-  softargmax_beta: 1000.0
   step_percent: 5.0
+  step_gamma: 0.1
   checkpoint_percent: 1.0
 
   mode: "distill"
