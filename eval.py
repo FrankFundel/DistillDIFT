@@ -11,6 +11,8 @@ from utils.model import read_model_config, load_model
 from utils.correspondence import compute_pck_img, compute_pck_bbox
 from utils.visualization import plot_results
 
+os.environ["NCCL_P2P_LEVEL"] = "NVL" # Configures NCCL to use NVLink for peer-to-peer (P2P) communication if available
+
 def eval(model, dataloader, accelerator, pck_threshold, use_cache=False, save_histograms=False, save_predictions=False, window_softargmax=False, pose_align=False):
     model.eval()
 
@@ -107,7 +109,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--pck_threshold', type=float, default=0.1, help='PCK threshold')
     parser.add_argument('--use_cache', action=argparse.BooleanOptionalAction, default=False, help='Precalculate features and use them for faster evaluation')
-    parser.add_argument('--cache_dir', type=str, default='/export/scratch/ra63des/cache', help='Directory to store cached features')
+    parser.add_argument('--cache_dir', type=str, default='/export/home/ffundel/DistillDIFT/cache', help='Directory to store cached features')
     parser.add_argument('--reset_cache', action=argparse.BooleanOptionalAction, default=False, help='Reset cache')
     parser.add_argument('--num_samples', type=int, default=None, help='Maximum number of samples to evaluate')
     parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=False, help='Plot results')

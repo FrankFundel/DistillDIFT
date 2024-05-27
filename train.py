@@ -22,6 +22,7 @@ from utils.distillation import should_save, softmax_with_temperature, softargmax
 torch.backends.cuda.matmul.allow_tf32 = True
 from accelerate import DistributedDataParallelKwargs
 
+os.environ["NCCL_P2P_LEVEL"] = "NVL" # Configures NCCL to use NVLink for peer-to-peer (P2P) communication if available
 
 def distill_epoch(teachers, student, dataloader, criterion, optimizer, scheduler, epoch, accelerator, use_cache, sampling_method, softmax_temperature=0.01, softargmax_beta=1000.0, model_name='best_model', checkpoint_percent=1.0):
     for t in teachers:
@@ -246,7 +247,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_config', type=str, default='dataset_config.yaml', help='Path to dataset config file')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for dataloader')
     parser.add_argument('--checkpoint', type=str, default=None, help='Path to checkpoint to resume training')
-    parser.add_argument('--cache_dir', type=str, default='/export/scratch/ra63des/cache', help='Path to cache directory')
+    parser.add_argument('--cache_dir', type=str, default='/export/home/ffundel/DistillDIFT/cache', help='Path to cache directory')
     parser.add_argument('--use_cache', action='store_true', help='Use cache')
     parser.add_argument('--reset_cache', action='store_true', help='Reset cache')
     parser.add_argument('--parallel_cache', action='store_true', help='Parallelize caching')
@@ -345,6 +346,9 @@ if __name__ == '__main__':
         mixed_precision="fp16" if half_precision else "no", # bf16 for A100
         kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=full_fine_tune)] # True for full fine-tune
     )
+    print("Waiting for everyone!")
+    accelerator.wait_for_everyone()
+    print("All processes synchronized!")
 
     # Cache dataset for each teacher and join caches
     if use_cache:

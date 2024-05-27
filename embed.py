@@ -12,13 +12,13 @@ dinov2_vitb14_reg.eval()
 
 # Parse the arguments
 parser = argparse.ArgumentParser(description='Embed images using DINOv2')
-parser.add_argument('--dataset', type=str, default='SPair-71k', help='Dataset name')
+parser.add_argument('--dataset_name', type=str, default='SPair-71k', help='Dataset name')
 parser.add_argument('--image_size', type=int, default=434, help='Image size')
 parser.add_argument('--config', type=str, default='dataset_config.yaml', help='Path to the dataset config file')
-parser.add_argument('--cache_dir', type=str, default='/export/scratch/ra63des/cache', help='Path to the cache directory')
+parser.add_argument('--cache_dir', type=str, default='/export/home/ffundel/DistillDIFT/cache', help='Path to the cache directory')
 
 args = parser.parse_args()
-dataset_name = args.dataset
+dataset_name = args.dataset_name
 image_size = [args.image_size, args.image_size]
 config_path = args.config
 cache_dir = args.cache_dir

@@ -4,15 +4,15 @@
 ############ Corresondence Datasets ############
 
 SPair-71k:
-  path: "/export/group/datasets/SPair-71k"
+  path: "/export/compvis-nfs/group/datasets/SPair-71k"
   random_sampling: true
 
 PF-WILLOW:
-  path: "/export/home/ra63des/DistillDIFT/data/PF-WILLOW"
+  path: "/data/PF-WILLOW"
   random_sampling: true
 
 CUB-200-2011:
-  path: "/export/home/ra63des/DistillDIFT/data/CUB_200_2011"
+  path: "/data/CUB_200_2011"
   num_samples: 1000
   random_sampling: true
 
@@ -28,10 +28,11 @@ ImageNet:
   normalize_image: true
 
 COCO:
-  path: "/export/group/datasets/coco"
-  embeddings_path: "/export/scratch/ra63des/cache/COCO_embeddings.pth"
+  #path: "/export/group/datasets/coco"
+  path: "/export/compvis-nfs/group/datasets/coco"
+  embeddings_path: "/export/home/ffundel/DistillDIFT/cache/COCO_embeddings.pth"
   random_sampling: true
-  num_samples: 12000
+  num_samples: 24000 #12000
 
 PASCALPart:
   path: "/export/group/datasets/PASCAL-Part"
