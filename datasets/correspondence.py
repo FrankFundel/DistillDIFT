@@ -7,6 +7,8 @@ import os
 import csv
 from PIL import Image
 import copy
+import h5py
+from tqdm import tqdm
 
 class CorrespondenceDataset(data.Dataset):
     """
@@ -280,6 +282,92 @@ class S2K(CorrespondenceDataset):
 
         # Sample points
         self.sample_points(sample)
+
+        if self.preprocess is not None:
+            sample = self.preprocess(sample)
+
+        return sample
+    
+class CO3D(CorrespondenceDataset):
+    """
+    Dataset class for the CO3D dataset.
+    """
+
+
+    def load_data(self):
+        data = []
+        with open(os.path.join(self.dataset_directory, 'metadata.json'), 'r') as file:
+            metadata = json.load(file)
+
+        h5_file = h5py.File(os.path.join(self.dataset_directory, 'co3d.h5'), 'r')
+        annotations = h5_file['data']
+        
+        # Standard source matrix
+        image_size = 128
+        num_samples = self.config.get('num_samples', -1)
+
+        for sequence_name in tqdm(list(metadata.keys())[:num_samples]):
+            sequence = metadata[sequence_name]
+            category = sequence['category']
+            image_paths = sequence['image_paths']
+            
+            source_image_path = os.path.join(self.dataset_directory, image_paths[0])
+            target_image_paths = [os.path.join(self.dataset_directory, p) for p in image_paths[1:]]
+
+            target_matrix = torch.tensor(annotations[sequence_name])
+
+            for t_idx in range(len(target_image_paths)):
+                set_indices = (target_matrix[t_idx] != -1).nonzero(as_tuple=True)
+                set_values = target_matrix[t_idx][set_indices]
+                target_points, source_points = [], []
+                for i in range(set_indices[0].size(0)):
+                    target_points.append(torch.tensor([set_indices[0][i], set_indices[1][i]]))
+                    source_points.append(torch.tensor([set_values[i] // image_size, set_values[i] % image_size]))
+                
+                if len(target_points) == 0:
+                    continue
+
+                # Calculate source and target bounding boxes
+                source_bbox = torch.tensor([source_points[0][0], source_points[0][1], source_points[0][0], source_points[0][1]])
+                target_bbox = torch.tensor([target_points[0][0], target_points[0][1], target_points[0][0], target_points[0][1]])
+
+                data.append({
+                    'source_image_path': source_image_path,
+                    'target_image_path': target_image_paths[t_idx],
+                    'source_points': torch.stack(source_points, dim=0),
+                    'target_points': torch.stack(target_points, dim=0),
+                    'source_bbox': source_bbox,
+                    'target_bbox': target_bbox,
+                    'source_category': category,
+                    'target_category': category
+                })
+
+        return data
+
+    def __getitem__(self, idx):
+        sample = copy.deepcopy(self.data[idx]) # prevent memory leak
+
+        # Load image
+        sample['source_image'] = Image.open(sample['source_image_path'])
+        sample['target_image'] = Image.open(sample['target_image_path'])
+
+        def make_square(im, min_size=128, fill_color=(0, 0, 0, 0)):
+            x, y = im.size
+            size = max(min_size, x, y)
+            new_im = Image.new('RGBA', (size, size), fill_color)
+            new_im.paste(im, (0, 0))
+            return new_im
+        
+        sample['source_image'] = make_square(sample['source_image'])
+        sample['target_image'] = make_square(sample['target_image'])
+
+        # Rescale images
+        sample['source_image'] = sample['source_image'].resize((128, 128))
+        sample['target_image'] = sample['target_image'].resize((128, 128))
+
+        # Save image size
+        sample['source_size'] = sample['source_image'].size
+        sample['target_size'] = sample['target_image'].size
 
         if self.preprocess is not None:
             sample = self.preprocess(sample)

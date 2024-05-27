@@ -5,7 +5,10 @@ We provide a well-written and documented code base for semantic correspondence, 
 
 ## 🚀 Getting Started
 
-_To be continued..._
+1. Clone the repository: `git clone https://github.com/FrankFundel/DistillDIFT.git`
+2. Create the anaconda environment: `conda env create -f environment.yml`
+3. Activate the environment: `conda activate distilldift`
+4. Install the pip requirements: `pip install -r requirements.txt`
 
 ## ⏳ ToDo
 - Clean up code

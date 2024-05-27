@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 import torch.utils.data as data
 
-from datasets.correspondence import CorrespondenceDataset, SPair, PFWillow, CUB, S2K
+from datasets.correspondence import SPair, PFWillow, CUB, S2K, CO3D
 from datasets.image import ImageDataset, ImageNet, PASCALPart, COCO
 from utils.correspondence import preprocess_image, flip_points, flip_bbox, rescale_points, rescale_bbox, normalize_features
 
@@ -54,6 +54,8 @@ def load_dataset(dataset_name, config, preprocess=None):
         return S2K(config, preprocess)
     if dataset_name == 'COCO':
         return COCO(config, preprocess)
+    if dataset_name == 'CO3D':
+        return CO3D(config, preprocess)
     
     raise ValueError('Dataset not recognized.')
 
