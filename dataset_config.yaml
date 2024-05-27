@@ -20,6 +20,10 @@ S2K:
   path: "/export/group/datasets/PASCAL-Part"
   only_non_unique: true
 
+CO3D:
+  path: "/export/scratch/ra63des/co3d"
+  random_sampling: true
+
 ############ Image Datasets ############
 
 ImageNet:
@@ -35,9 +39,3 @@ COCO:
 
 PASCALPart:
   path: "/export/group/datasets/PASCAL-Part"
-
-############ 3D Datasets ############
-
-CO3D:
-  path: "/export/group/datasets/co3d"
-  random_sampling: true
