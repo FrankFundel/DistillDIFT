@@ -17,11 +17,11 @@ CUB-200-2011:
   random_sampling: true
 
 S2K:
-  path: "/export/group/datasets/PASCAL-Part"
+  path: "/export/home/ffundel/DistillDIFT/data/PASCAL-Part"
   only_non_unique: true
 
 CO3D:
-  path: "/export/scratch/ra63des/co3d"
+  path: "/export/home/ffundel/co3d"
   random_sampling: true
 
 ############ Image Datasets ############

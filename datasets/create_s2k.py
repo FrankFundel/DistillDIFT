@@ -22,7 +22,7 @@ import tqdm
 import scipy.io
 import numpy as np
 
-dataset_directory = "/export/group/datasets/PASCAL-Part"
+dataset_directory = "/export/home/ffundel/DistillDIFT/data/PASCAL-Part"
 annotation_directory = os.path.join(dataset_directory, "Annotations_Part")
 
 def load_annotations(path):

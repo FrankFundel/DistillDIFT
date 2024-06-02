@@ -13,7 +13,8 @@ import torch.utils.data as data
 from torch.nn.functional import interpolate, one_hot
 import torchvision
 
-from utils.dataset import CorrespondenceDataset, CorrespondenceDataset_to_ImageDataset
+from datasets.correspondence import CorrespondenceDataset
+from utils.dataset import CorrespondenceDataset_to_ImageDataset
 from utils.dataset import read_dataset_config, load_dataset, cache_dataset, combine_caches, Preprocessor, CacheDataset
 from utils.model import read_model_config, load_model
 from utils.correspondence import points_to_idxs, idxs_to_points, flatten_features, normalize_features, rescale_points
@@ -344,7 +345,7 @@ if __name__ == '__main__':
             logging_dir="logs"
         ),
         mixed_precision="fp16" if half_precision else "no", # bf16 for A100
-        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=full_fine_tune)] # True for full fine-tune
+        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=False)] # True for full fine-tune
     )
     print("Waiting for everyone!")
     accelerator.wait_for_everyone()

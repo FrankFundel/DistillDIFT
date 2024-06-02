@@ -293,56 +293,108 @@ class CO3D(CorrespondenceDataset):
     Dataset class for the CO3D dataset.
     """
 
-
     def load_data(self):
         data = []
-        with open(os.path.join(self.dataset_directory, 'metadata.json'), 'r') as file:
-            metadata = json.load(file)
+        if not os.path.exists(os.path.join(self.dataset_directory, "cache.h5")):
+            with open(os.path.join(self.dataset_directory, 'metadata.json'), 'r') as file:
+                metadata = json.load(file)
 
-        h5_file = h5py.File(os.path.join(self.dataset_directory, 'co3d.h5'), 'r')
-        annotations = h5_file['data']
-        
-        # Standard source matrix
-        image_size = 128
-        num_samples = self.config.get('num_samples', -1)
-
-        for sequence_name in tqdm(list(metadata.keys())[:num_samples]):
-            sequence = metadata[sequence_name]
-            category = sequence['category']
-            image_paths = sequence['image_paths']
+            h5_file = h5py.File(os.path.join(self.dataset_directory, 'co3d.h5'), 'r')
+            annotations = h5_file['data']
             
-            source_image_path = os.path.join(self.dataset_directory, image_paths[0])
-            target_image_paths = [os.path.join(self.dataset_directory, p) for p in image_paths[1:]]
+            # Standard source matrix
+            image_size = 128
+            num_samples = self.config.get('num_samples', -1)
 
-            target_matrix = torch.tensor(annotations[sequence_name])
-
-            for t_idx in range(len(target_image_paths)):
-                set_indices = (target_matrix[t_idx] != -1).nonzero(as_tuple=True)
-                set_values = target_matrix[t_idx][set_indices]
-                target_points, source_points = [], []
-                for i in range(set_indices[0].size(0)):
-                    target_points.append(torch.tensor([set_indices[0][i], set_indices[1][i]]))
-                    source_points.append(torch.tensor([set_values[i] // image_size, set_values[i] % image_size]))
+            for sequence_name in tqdm(list(metadata.keys())[:num_samples]):
+                sequence = metadata[sequence_name]
+                category = sequence['category']
+                image_paths = sequence['image_paths']
                 
-                if len(target_points) == 0:
-                    continue
+                # fix paths
+                image_paths = [p.replace('/export/group/datasets/co3d/', '/export/compvis-nfs/group/datasets/co3d/') for p in image_paths]
+                source_image_path = os.path.join(self.dataset_directory, image_paths[0])
+                target_image_paths = [os.path.join(self.dataset_directory, p) for p in image_paths[1:]]
 
-                # Calculate source and target bounding boxes
-                source_bbox = torch.tensor([source_points[0][0], source_points[0][1], source_points[0][0], source_points[0][1]])
-                target_bbox = torch.tensor([target_points[0][0], target_points[0][1], target_points[0][0], target_points[0][1]])
+                target_matrix = torch.tensor(annotations[sequence_name])
 
-                data.append({
-                    'source_image_path': source_image_path,
-                    'target_image_path': target_image_paths[t_idx],
-                    'source_points': torch.stack(source_points, dim=0),
-                    'target_points': torch.stack(target_points, dim=0),
-                    'source_bbox': source_bbox,
-                    'target_bbox': target_bbox,
-                    'source_category': category,
-                    'target_category': category
-                })
+                for t_idx in range(len(target_image_paths)):
+                    set_indices = (target_matrix[t_idx] != -1).nonzero(as_tuple=True)
+                    set_values = target_matrix[t_idx][set_indices]
+                    target_points, source_points = [], []
+                    for i in range(set_indices[0].size(0)):
+                        target_points.append(torch.tensor([set_indices[0][i], set_indices[1][i]]))
+                        source_points.append(torch.tensor([set_values[i] // image_size, set_values[i] % image_size]))
+                    
+                    if len(target_points) == 0:
+                        continue
+
+                    # Calculate source and target bounding boxes
+                    source_bbox = torch.tensor([source_points[0][0], source_points[0][1], source_points[0][0], source_points[0][1]])
+                    target_bbox = torch.tensor([target_points[0][0], target_points[0][1], target_points[0][0], target_points[0][1]])
+
+                    data.append({
+                        'source_image_path': source_image_path,
+                        'target_image_path': target_image_paths[t_idx],
+                        'source_points': torch.stack(source_points, dim=0).float(),
+                        'target_points': torch.stack(target_points, dim=0).float(),
+                        'source_bbox': source_bbox,
+                        'target_bbox': target_bbox,
+                        'source_category': category,
+                        'target_category': category
+                    })
+
+            # write data to h5py if it does not exist
+            with h5py.File(os.path.join(self.dataset_directory, "cache.h5"), 'w') as h5file:
+                for i, item in enumerate(data):
+                    group = h5file.create_group(f'item_{i}')
+                    group.create_dataset('source_image_path', data=item['source_image_path'])
+                    group.create_dataset('target_image_path', data=item['target_image_path'])
+                    group.create_dataset('source_points', data=item['source_points'].numpy())
+                    group.create_dataset('target_points', data=item['target_points'].numpy())
+                    group.create_dataset('source_bbox', data=item['source_bbox'])
+                    group.create_dataset('target_bbox', data=item['target_bbox'])
+                    group.create_dataset('source_category', data=item['source_category'])
+                    group.create_dataset('target_category', data=item['target_category'])
+        else:
+            with h5py.File(os.path.join(self.dataset_directory, "cache.h5"), 'r') as h5file:
+                for key in h5file.keys():
+                    group = h5file[key]
+                    data.append({
+                        'source_image_path': group['source_image_path'][()],
+                        'target_image_path': group['target_image_path'][()],
+                        'source_points': torch.tensor(group['source_points'][:]).float(),
+                        'target_points': torch.tensor(group['target_points'][:]).float(),
+                        'source_bbox': torch.tensor(group['source_bbox'][:]),
+                        'target_bbox': torch.tensor(group['target_bbox'][:]),
+                        'source_category': group['source_category'][()],
+                        'target_category': group['target_category'][()]
+                    })
 
         return data
+    
+    def non_maximum_suppression(self, points, radius):
+        """
+        Perform non-maximum suppression on a set of points with a specified radius.
+        
+        Parameters:
+        points (torch.Tensor): Tensor of shape (N, 2) containing the (x, y) coordinates of the points.
+        radius (float): Radius for suppression.
+        
+        Returns:
+        torch.Tensor: Tensor containing the points after non-maximum suppression.
+        """
+        suppressed = torch.zeros(points.shape[0], dtype=torch.bool)
+        indices = []
+        
+        for i in range(points.shape[0]):
+            if suppressed[i]:
+                continue
+            indices.append(i)
+            distances = torch.norm(points - points[i], dim=1)
+            suppressed = suppressed | (distances < radius)
+        
+        return points[indices], torch.tensor(indices)
 
     def __getitem__(self, idx):
         sample = copy.deepcopy(self.data[idx]) # prevent memory leak
@@ -351,24 +403,45 @@ class CO3D(CorrespondenceDataset):
         sample['source_image'] = Image.open(sample['source_image_path'])
         sample['target_image'] = Image.open(sample['target_image_path'])
 
-        def make_square(im, min_size=128, fill_color=(0, 0, 0, 0)):
-            x, y = im.size
-            size = max(min_size, x, y)
-            new_im = Image.new('RGBA', (size, size), fill_color)
-            new_im.paste(im, (0, 0))
-            return new_im
-        
-        sample['source_image'] = make_square(sample['source_image'])
-        sample['target_image'] = make_square(sample['target_image'])
-
-        # Rescale images
-        sample['source_image'] = sample['source_image'].resize((128, 128))
-        sample['target_image'] = sample['target_image'].resize((128, 128))
-
         # Save image size
         sample['source_size'] = sample['source_image'].size
         sample['target_size'] = sample['target_image'].size
 
+        # Non-maximum suppression on points
+        sample['source_points'], idx = self.non_maximum_suppression(sample['source_points'], 10)
+        sample['target_points'] = sample['target_points'][idx]
+
+        # image width to square image ratio
+        if sample['source_size'][0] > sample['source_size'][1]: # W > H
+            ratio = sample['source_size'][0] / sample['source_size'][1]
+            sample['source_points'][:, 1] *= ratio
+            sample['target_points'][:, 1] *= ratio
+        else: # H > W
+            ratio = sample['source_size'][1] / sample['source_size'][0]
+            sample['source_points'][:, 0] *= ratio
+            sample['target_points'][:, 0] *= ratio
+
+        def rescale_points(points, old_size, new_size):
+            """
+            Rescale points to match new image size.
+
+            Args:
+                points (torch.Tensor): [N, 2] where each point is (x, y)
+                old_size (tuple): (width, height)
+                new_size (tuple): (width, height)
+
+            Returns:
+                torch.Tensor: [N, 2] where each point is (x, y)
+            """
+            x_scale = new_size[0] / old_size[0]
+            y_scale = new_size[1] / old_size[1]
+            scaled_points = torch.multiply(points, torch.tensor([x_scale, y_scale], device=points.device))
+            return scaled_points
+
+        # Resize points
+        sample['source_points'] = rescale_points(sample['source_points'], (128, 128), sample['source_size'])
+        sample['target_points'] = rescale_points(sample['target_points'], (128, 128), sample['target_size'])
+        
         if self.preprocess is not None:
             sample = self.preprocess(sample)
 

@@ -27,15 +27,14 @@ distilled_s:
 distilled_lr:
   image_size: [434, 434]
   image_range: [0, 1]
-  #weights: "/export/home/ra63des/DistillDIFT/checkpoints/distilled_us_best_coco_40/pytorch_model.bin"
-  weights: "/export/home/ra63des/DistillDIFT/checkpoints/distilled_ws_0_6667/pytorch_model.bin"
+  weights: "/export/home/ffundel/DistillDIFT/checkpoints/distilled_ws_best_co3d/pytorch_model.bin"
   rank: 8
   lora_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-  lora_dropout: 0.05 # 0.1
+  lora_dropout: 0.1 # 0.5
   linear_head: true
 
   batch_size: 1
-  num_epochs: 8
+  num_epochs: 21
   learning_rate: 0.00001
   weight_decay: 0.05
   mode: "train"
@@ -43,9 +42,9 @@ distilled_lr:
   similarity_method: "softmax"
   loss_function: "cross_entropy"
   half_precision: false
-  step_percent: 4.0
+  step_percent: 7.0
   step_gamma: 0.5
-  checkpoint_percent: 1.0
+  checkpoint_percent: 0.5 #1.0
   softmax_temperature: 0.01
 
 ############ Distillation ############
