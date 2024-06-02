@@ -1,4 +1,4 @@
-# DistillDIFT
+![Title](title.png)
 
 Distilling the capability of large diffusion models and transformer models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
@@ -21,6 +21,7 @@ We provide a well-written and documented code base for semantic correspondence, 
 2. Tang et al.: https://github.com/Tsingularity/dift
 3. Zhang et al.: https://github.com/Junyi42/sd-dino
 4. Luo et al.: https://github.com/diffusion-hyperfeatures/diffusion_hyperfeatures
+5. Zhang et al.: https://github.com/Junyi42/geoaware-sc
 
 ## 🧫 Evaluation
 
@@ -65,7 +66,11 @@ For fully unsupervised distillation, retrieval-based image sampling is needed, t
 
 ## ⚗️ Distilled models
 
-_To be continued..._
+| Model | Link |
+|----------|----------|
+| DistillDIFT (Unsupervised) | [Download (348MB)](https://cloudstore.uni-ulm.de/s/nDxtsL8k52wWFTY) |
+| DistillDIFT (Weakly-Supervised) | [Download (348MB)](https://cloudstore.uni-ulm.de/s/MN7Joo9XcLtXcYs) |
+| DistillDIFT (Supervised) | [Download (357MB)](https://cloudstore.uni-ulm.de/s/S8oTst4StDRrqz2) |
 
 ## ⭐ Demos
 
