@@ -10,11 +10,6 @@ We provide a well-written and documented code base for semantic correspondence, 
 3. Activate the environment: `conda activate distilldift`
 4. Install the pip requirements: `pip install -r requirements.txt`
 
-## ⏳ ToDo
-- Clean up code
-- Remove private paths
-- Update README.md
-
 ## 💼 Related Work
 
 1. Hedlin et al.: https://github.com/ubc-vision/LDM_correspondences
