@@ -1,4 +1,4 @@
-![Title](title.png)
+<img src="title.png" height="120">
 
 Distilling the capability of large diffusion models and transformer models for semantic correspondence.
 We provide a well-written and documented code base for semantic correspondence, feel free to use it!
